@@ -17,6 +17,22 @@
 (function () {
     const STORAGE_KEY = "sacrvm.desktop.apps.v1";
 
+    /** Where "what is an app here?" is answered in full. */
+    const BUILD_GUIDE = "https://sacrvm.github.io/sacrvm-appkit/#/build";
+
+    /**
+     * The address a paste resolves to — the same rule sac.apps.inspect() uses,
+     * repeated here only so a failure can name it. Reporting where it looked
+     * turns "it did not work" into something the author can act on.
+     */
+    function manifestUrlOf(input) {
+        const raw = String(input || "").trim();
+        const gh = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([^/]+)\/([^/#?]+)/i.exec(raw);
+        if (gh) return `https://${gh[1].toLowerCase()}.github.io/${gh[2].replace(/\.git$/, "")}/app.json`;
+        if (/\/app\.json$/i.test(raw)) return raw;
+        return raw.replace(/\/+$/, "") + "/app.json";
+    }
+
     /* -------------------------------------------------------- persistence */
 
     /** @returns {Array<object>} installed manifests, in install order. */
@@ -176,11 +192,24 @@
         try {
             manifest = await sac.apps.inspect(input);
         } catch (err) {
-            await sac.dialog.confirm({
-                title: "Nothing to install",
-                message: `${err.message}\n\nAn app repository publishes its Pages with an app.json in the root.`,
-                buttons: [{ action: "ok", label: "OK", kind: "default" }],
+            const answer = await sac.dialog.confirm({
+                title: "Not an app this desktop can install",
+                message:
+                    `This desktop installs SACRVM APPKIT apps — a repository whose GitHub Pages ` +
+                    `serves an app.json in its root, next to the one custom element the app is. ` +
+                    `Any other repository, however good, has nothing here to read.\n\n` +
+                    `Making one is small: start from the template, rename five strings, switch ` +
+                    `Pages on.\n\n` +
+                    // The address it actually tried, last: it is the useful
+                    // detail when something IS an app and still did not load
+                    // (Pages off, a typo, a private repo).
+                    `Looked for: ${manifestUrlOf(input)}`,
+                buttons: [
+                    { action: "ok", label: "OK", kind: "default" },
+                    { action: "how", label: "How to build one", kind: "primary" },
+                ],
             });
+            if (answer === "how") window.open(BUILD_GUIDE, "_blank", "noopener");
             return null;
         }
 
@@ -275,6 +304,12 @@
 
             const p = document.createElement("p");
             p.textContent = "Paste the app's repository URL — or its app.json, if it lives somewhere else.";
+            // Said before the paste, not after the failure: this desktop can
+            // only read one kind of repository, and that is not obvious.
+            const scope = document.createElement("p");
+            scope.className = "hint";
+            scope.textContent = "SACRVM APPKIT apps only — a repository serving an app.json " +
+                                "from its GitHub Pages root. Anything else has nothing to read.";
             const input = document.createElement("input");
             input.type = "url";
             input.placeholder = "https://github.com/owner/repo";
@@ -284,7 +319,7 @@
             input.addEventListener("keydown", (e) => {
                 if (e.key === "Enter") { e.preventDefault(); dlg.close("read"); }
             });
-            dlg.append(p, input);
+            dlg.append(p, input, scope);
 
             dlg.addEventListener("sac-dialog:action", (e) => {
                 const value = input.value.trim();
@@ -735,6 +770,17 @@
                only reach its own. Removing an app <strong>keeps</strong> what it stored,
                so reinstalling brings your work back; the remove dialog offers to delete
                it too, and says how much there is.</p>
+
+            <h3>Which apps can go on it?</h3>
+            <p><strong>SACRVM APPKIT apps — and only those.</strong> Concretely: a
+               repository whose GitHub Pages serves an <code>app.json</code> in its
+               root, next to the one custom element that app is. That manifest is
+               the whole reason a desktop can install something it has never seen.</p>
+            <p>Any other repository — however good the project — has nothing here
+               to read, and pasting it will politely fail. This is not a store with
+               a review queue: there is no approval, no account and no list. If it
+               has a manifest, it installs; if it has none, there is nothing to
+               install.</p>
 
             <h3>What installing does</h3>
             <ol class="steps">
