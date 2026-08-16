@@ -133,7 +133,14 @@
     margin-bottom: 0;
 }
 .settings label:first-child { margin-top: 0; }
+.settings-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 0.3rem;
+}
 .settings .btn.danger { width: auto; align-self: flex-start; }
+.settings .btn.danger[hidden] { display: none; }
 .info h3 {
     font-size: 0.95rem;
     margin-top: 0.8rem;

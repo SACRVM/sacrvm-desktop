@@ -131,7 +131,11 @@
  *                                  // EFFECTIVE change (incl. OS flips in auto);
  *                                  // returns an unsubscribe function
  *       },
- *       fs: null,                  // reserved — future shared storage capability
+ *       fs: {                      // storage scoped to this app (kit/js/lib/fs.js),
+ *           read(path, fallback),  // null when the host loaded no fs lib —
+ *           write(path, value),    // apps check before reaching for it
+ *           remove(path), list(prefix), clear(), usage(), watch(cb),
+ *       },
  *       identity: null,            // reserved — future shell identity capability
  *   }
  *
@@ -258,7 +262,10 @@
             appId: id,
             params: params == null ? new URLSearchParams() : new URLSearchParams(params),
             theme,
-            fs: null,       // reserved — future shared storage capability
+            // Scoped storage, when the kit's fs lib is loaded. A host that
+            // grants no storage simply does not load it, and apps see null —
+            // which is why an app still checks before reaching for it.
+            fs: window.sac.fs ? sac.fs.for(id) : null,
             identity: null, // reserved — future shell identity capability
         };
 
@@ -353,6 +360,12 @@
             });
         }
         emitChanged(manifest.id, "register");
+
+        // Registered while the address already points at it — an app installed
+        // from a link that names it, or a shell registering after init(). No
+        // hashchange will fire for a hash that never changed, so look again
+        // here or the stage stays empty on the app the URL asked for.
+        if (hashBound && manifest.kind === "view" && !activeId) routeFromHash();
     }
 
     function list() {

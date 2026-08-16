@@ -48,8 +48,10 @@ How to write one, end to end:
 
 ## Known gaps
 
-- `context.fs` and `context.identity` are reserved and still `null` — apps
-  needing storage use `localStorage` for now.
+- `context.identity` is reserved and still `null`.
+- `context.fs` is granted (this browser's storage, one drawer per app). Removing
+  an app keeps its data by default and offers to delete it; nothing prunes the
+  drawer of an app you never reinstall.
 - Installed apps are not version-pinned: the desktop re-reads the origin, so
   an author's next release is simply there.
 - A text-input dialog is hand-rolled here (`promptUrl` in `desktop.js`); once

@@ -206,24 +206,55 @@
         return manifest;
     }
 
+    /** What an app has stored here, as a sentence — or null if it stored nothing. */
+    async function dataOf(manifest) {
+        if (!window.sac || !sac.fs) return null;
+        try {
+            const { bytes, count } = await sac.fs.for(manifest.id).usage();
+            if (!count) return null;
+            const size = bytes < 1024 ? `${bytes} bytes`
+                       : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB`
+                       : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+            return { bytes, count, text: `${count} item${count === 1 ? "" : "s"}, ${size}` };
+        } catch (err) {
+            return null;
+        }
+    }
+
     async function uninstall(manifest) {
+        // Data is a second decision, never a side effect: removing an app is
+        // about this desktop, deleting what you wrote in it is about your work.
+        const data = await dataOf(manifest);
+        const buttons = [
+            { action: "cancel", label: "Cancel", kind: "default" },
+            { action: "remove", label: data ? "Remove, keep data" : "Remove", kind: "destructive" },
+        ];
+        if (data) buttons.push({ action: "purge", label: "Remove + delete data", kind: "destructive" });
+
         const answer = await sac.dialog.confirm({
             title: `Remove ${manifest.name}?`,
             message:
                 `It is removed from THIS browser's desktop — that is the only place it was.\n\n` +
                 `The app itself stays at ${originLabel(manifest)}, untouched, and ` +
-                `installing it again is one paste.`,
-            buttons: [
-                { action: "cancel", label: "Cancel", kind: "default" },
-                { action: "remove", label: "Remove", kind: "destructive" },
-            ],
+                `installing it again is one paste.` +
+                (data ? `\n\nIt has stored ${data.text} here. Kept by default, so reinstalling ` +
+                        `brings it back — or delete it now, which cannot be undone.` : ""),
+            buttons,
         });
-        if (answer !== "remove") return;
+        if (answer !== "remove" && answer !== "purge") return;
+
+        if (answer === "purge") {
+            try { await sac.fs.for(manifest.id).clear(); }
+            catch (err) { console.warn(`[desktop] could not delete ${manifest.id}'s data:`, err); }
+        }
 
         sac.apps.remove(manifest.id);
         installed = installed.filter((m) => m.id !== manifest.id);
         save(installed);
         renderTiles();
+        if (typeof sac.toast === "function" && answer === "purge") {
+            sac.toast(`${manifest.name} and its data are gone.`, { kind: "info" });
+        }
     }
 
     /**
@@ -496,7 +527,11 @@
             <p class="hint">Your apps and these settings live in this browser,
                on this device. Nobody else sees them, and there is no account
                to lose them with.</p>
-            <button type="button" class="btn danger remove-all">Remove all apps</button>
+            <p class="hint orphans" hidden></p>
+            <div class="settings-actions">
+                <button type="button" class="btn danger remove-all">Remove all apps</button>
+                <button type="button" class="btn danger clear-orphans" hidden>Delete leftover data</button>
+            </div>
         `;
         dlg.appendChild(wrap);
 
@@ -526,23 +561,104 @@
                 if (typeof sac.toast === "function") sac.toast("Nothing installed.", { kind: "info" });
                 return;
             }
+            const stored = (await Promise.all(installed.map(dataOf))).filter(Boolean);
+            const items = stored.reduce((n, d) => n + d.count, 0);
+            const buttons = [
+                { action: "cancel", label: "Cancel", kind: "default" },
+                { action: "wipe", label: stored.length ? "Remove, keep data" : "Remove all",
+                  kind: "destructive", armAfterMs: 1200 },
+            ];
+            if (stored.length) {
+                buttons.push({ action: "purge", label: "Remove + delete data",
+                               kind: "destructive", armAfterMs: 1200 });
+            }
+
             const answer = await sac.dialog.confirm({
                 title: `Remove all ${installed.length} apps?`,
                 message:
                     "This browser's desktop is emptied. Every app stays where it lives — " +
-                    "nothing is deleted at any origin.",
-                buttons: [
-                    { action: "cancel", label: "Cancel", kind: "default" },
-                    { action: "wipe", label: "Remove all", kind: "destructive", armAfterMs: 1200 },
-                ],
+                    "nothing is deleted at any origin." +
+                    (stored.length ? `\n\n${stored.length} of them stored ${items} item` +
+                                     `${items === 1 ? "" : "s"} here. That is your work, so it is ` +
+                                     `kept unless you say otherwise.` : ""),
+                buttons,
             });
-            if (answer !== "wipe") return;
-            installed.slice().forEach((m) => sac.apps.remove(m.id));
+            if (answer !== "wipe" && answer !== "purge") return;
+
+            for (const m of installed.slice()) {
+                if (answer === "purge" && window.sac.fs) {
+                    try { await sac.fs.for(m.id).clear(); }
+                    catch (err) { console.warn(`[desktop] could not delete ${m.id}'s data:`, err); }
+                }
+                sac.apps.remove(m.id);
+            }
             installed = [];
             save(installed);
             renderTiles();
         });
 
+        /* Data an app left behind. Removing an app keeps its work on purpose,
+           which is right until the app is never coming back — then it is
+           invisible clutter, and only the desktop can see it at all. */
+        const orphanLine = wrap.querySelector(".orphans");
+        const orphanBtn  = wrap.querySelector(".clear-orphans");
+
+        async function findOrphans() {
+            if (!window.sac || !sac.fs) return [];
+            try {
+                const ids = await sac.fs.apps();
+                const gone = ids.filter((id) => !installed.some((m) => m.id === id));
+                const withData = [];
+                for (const id of gone) {
+                    const usage = await sac.fs.for(id).usage();
+                    if (usage.count) withData.push({ id, ...usage });
+                }
+                return withData;
+            } catch (err) {
+                return [];
+            }
+        }
+
+        async function showOrphans() {
+            const orphans = await findOrphans();
+            const has = orphans.length > 0;
+            orphanLine.hidden = !has;
+            orphanBtn.hidden = !has;
+            if (!has) return;
+            const bytes = orphans.reduce((n, o) => n + o.bytes, 0);
+            const size = bytes < 1024 ? `${bytes} bytes` : `${Math.round(bytes / 1024)} KB`;
+            orphanLine.textContent =
+                `${size} of data belongs to ${orphans.length} app` +
+                `${orphans.length === 1 ? "" : "s"} that ${orphans.length === 1 ? "is" : "are"} ` +
+                `not on this desktop (${orphans.map((o) => o.id).join(", ")}). ` +
+                `Reinstalling picks it up again — deleting it here cannot be undone.`;
+            orphanBtn._orphans = orphans;
+        }
+
+        orphanBtn.addEventListener("click", async () => {
+            const orphans = orphanBtn._orphans || [];
+            if (!orphans.length) return;
+            const answer = await sac.dialog.confirm({
+                title: "Delete leftover data?",
+                message:
+                    `Everything ${orphans.map((o) => o.id).join(", ")} stored in this browser is ` +
+                    `deleted. The apps are already gone from this desktop; this is their work.\n\n` +
+                    `It cannot be undone.`,
+                buttons: [
+                    { action: "cancel", label: "Cancel", kind: "default" },
+                    { action: "purge", label: "Delete", kind: "destructive", armAfterMs: 1200 },
+                ],
+            });
+            if (answer !== "purge") return;
+            for (const o of orphans) {
+                try { await sac.fs.for(o.id).clear(); }
+                catch (err) { console.warn(`[desktop] could not delete ${o.id}'s data:`, err); }
+            }
+            showOrphans();
+        });
+
+        // Recount on every opening: apps come and go between them.
+        dlg.addEventListener("sac-dialog:open", showOrphans);
         dlg.addEventListener("sac-dialog:action", () => { /* stays in the DOM */ });
 
         document.body.appendChild(dlg);
@@ -577,6 +693,12 @@
                so the author's next release is simply there.
                <strong>Removing an app forgets that address in this browser.</strong>
                Nothing is deleted at the origin, and nothing on GitHub.</p>
+
+            <h3>And what you write in them?</h3>
+            <p>Also here, in this browser — each app gets its own drawer, and it can
+               only reach its own. Removing an app <strong>keeps</strong> what it stored,
+               so reinstalling brings your work back; the remove dialog offers to delete
+               it too, and says how much there is.</p>
 
             <h3>What installing does</h3>
             <ol class="steps">

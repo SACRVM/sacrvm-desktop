@@ -84,7 +84,13 @@
 
     /** The context an app gets when it runs without a host. */
     function standaloneContext(el) {
-        const id = el.tagName.toLowerCase();
+        // Standalone there is no manifest to read the id from, so it comes off
+        // the tag: "app-notes" → "notes". Follow the template's naming
+        // (tag = "app-" + id) and the id — and with it the storage root under
+        // context.fs — is the same whether the app runs alone or installed.
+        // Name them differently and it is a different id, hence different
+        // storage: harmless, but it is why the convention exists.
+        const id = el.tagName.toLowerCase().replace(/^app-/, "");
         const routeOf = () => (window.location.hash || "").replace(/^#\/?/, "");
         return {
             appId: id,
@@ -118,8 +124,11 @@
                 },
             },
             theme: themeHandle(),
-            fs: null,       // reserved — the shell grows these, not the app
-            identity: null,
+            // The same storage the app gets on a desktop, under the same root
+            // as long as the tag follows the naming above: develop standalone,
+            // install later, and what you saved is still there.
+            fs: window.sac.fs ? sac.fs.for(id) : null,
+            identity: null, // reserved — the shell grows this, not the app
         };
     }
 
