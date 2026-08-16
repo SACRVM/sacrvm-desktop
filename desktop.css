@@ -1,0 +1,117 @@
+/* SACRVM DESKTOP — shell-local layout only. Every value is a kit token; the
+   desktop adds no colours of its own, so a theme swap carries it whole. */
+
+.section {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 2rem 3rem;
+}
+.section h2 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+.section .lead {
+    color: var(--text-muted);
+    max-width: 60ch;
+    margin: 0 0 1.5rem;
+}
+
+.two-col {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.steps {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: var(--text-muted);
+    line-height: 1.9;
+}
+
+.note {
+    margin: 1rem 0 0;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 0.85rem;
+}
+
+.facts { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.facts td {
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+}
+.facts tr:last-child td { border-bottom: none; }
+.facts td:first-child {
+    color: var(--text-muted);
+    padding-right: 1.5rem;
+    white-space: nowrap;
+}
+
+/* The origin line under every tile — small, dim, and never absent. */
+.tile-meta {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    margin-top: 0.35rem;
+}
+
+/* Uninstall: hidden until the tile is hovered or something inside it has
+   focus, so the grid stays calm but the control is always reachable. */
+.tile-remove {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    line-height: 1;
+    color: var(--text-dim);
+    background: none;
+    border: none;
+    border-radius: var(--radius-m);
+    opacity: 0;
+    cursor: pointer;
+    transition: opacity 0.15s var(--ease-smooth),
+                color 0.15s var(--ease-smooth),
+                background 0.15s var(--ease-smooth);
+}
+.tile:hover .tile-remove,
+.tile:focus-within .tile-remove { opacity: 1; }
+.tile-remove:hover {
+    color: var(--danger-text);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.tile-remove:focus-visible {
+    opacity: 1;
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* sac.dialog.confirm sets its message with textContent, so the line breaks
+   in it are real characters — let them render. */
+sac-dialog p { white-space: pre-line; }
+
+.empty {
+    color: var(--text-muted);
+    margin: 1.5rem 0 0;
+}
+.empty[hidden] { display: none; }
+
+/* A button that reads as a link, because it acts like one. */
+.link-btn {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--accent-text);
+    font: inherit;
+    cursor: pointer;
+}
+.link-btn:hover { text-decoration: underline; }
+
+@media (prefers-reduced-motion: reduce) {
+    .tile-remove { transition: none; }
+}

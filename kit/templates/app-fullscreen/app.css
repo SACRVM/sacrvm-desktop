@@ -1,0 +1,19 @@
+/* Scoped to the app's own element — never :root, or the app would repaint
+   the desktop around it. Set --accent here for a per-app identity: everything
+   derived follows inside the app, the desktop around it keeps its own. */
+app-my-fullscreen-app {
+    display: block;
+    /* --accent: #10b981; */
+}
+
+app-my-fullscreen-app .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    /* No nav clearance: the stage sits below the ribbon already. */
+    padding: 4rem 2rem 3rem;
+}
+
+app-my-fullscreen-app .lead {
+    color: var(--text-muted);
+    max-width: 60ch;
+}

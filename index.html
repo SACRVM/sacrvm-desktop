@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SACRVM DESKTOP</title>
+    <meta name="description" content="A web desktop you fill yourself: paste a repo URL, the app installs. Zero dependencies, zero build — apps are web components, the desktop is one page.">
+
+    <meta property="og:title" content="SACRVM DESKTOP">
+    <meta property="og:description" content="A web desktop you fill yourself: paste a repo URL, the app installs.">
+    <meta property="og:url" content="https://desktop.sacrvm.dev/">
+    <meta property="og:type" content="website">
+
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/><polyline points='3.27 6.96 12 12.01 20.73 6.96'/><line x1='12' y1='22.08' x2='12' y2='12'/></svg>">
+
+    <link rel="stylesheet" href="kit/css/ui.css">
+    <link rel="stylesheet" href="desktop.css">
+
+    <!-- The kit is vendored: this repo owns a copy of kit/ and upgrades when
+         it chooses. A desktop hosts apps it does not know in advance, so it
+         loads the whole kit rather than cherry-picking. -->
+    <script defer src="kit/js/all.js"></script>
+    <script defer src="desktop.js"></script>
+</head>
+<body class="app-page">
+    <sac-nav brand="SACRVM" brand-icon="cube" brand-href="#/" app-name="DESKTOP">
+        <div slot="context"><sac-theme-toggle></sac-theme-toggle></div>
+        <div slot="toolbar" class="toolbar">
+            <button class="btn primary" id="install-btn">
+                <sac-icon name="plus"></sac-icon> Install app
+            </button>
+        </div>
+    </sac-nav>
+
+    <div class="workspace">
+        <div class="main-layout">
+            <!-- Filled by whichever app is on stage (context.sidebar). -->
+            <sac-sidebar></sac-sidebar>
+
+            <div class="app-stage" id="app-stage">
+                <div id="app-home">
+                    <div class="orb"></div>
+
+                    <div class="hub-container">
+                        <header>
+                            <h1>SACRVM DESKTOP</h1>
+                            <p class="intro-text">
+                                A desktop you fill yourself. Paste the URL of an app repository and it
+                                is installed — the desktop remembers where the app lives, never a copy
+                                of it, so the author's next release is simply there.
+                            </p>
+                        </header>
+
+                        <main class="grid" id="tiles"></main>
+
+                        <p class="empty" id="empty" hidden>
+                            Nothing installed yet. <button class="link-btn" id="empty-install">Install an app</button>
+                            — or start from the
+                            <a href="https://sacrvm.github.io/sacrvm-appkit/kit/templates/">templates</a>.
+                        </p>
+                    </div>
+
+                    <div class="section">
+                        <h2>How installing works</h2>
+                        <p class="lead">
+                            One repo, one app, always the same shape — so a URL is enough.
+                        </p>
+                        <div class="two-col">
+                            <div class="card">
+                                <ol class="steps">
+                                    <li>You paste <code>github.com/owner/repo</code>.</li>
+                                    <li>The desktop reads <code>owner.github.io/repo/app.json</code> —
+                                        a fetch, not an execution.</li>
+                                    <li>It shows you what the manifest says, and where it came from.</li>
+                                    <li>You confirm. Only then is the app's script ever loaded, and
+                                        only when you first open the app.</li>
+                                </ol>
+                                <p class="note">
+                                    An installed app runs its own code in this page. Install what you
+                                    trust, the way you would a browser extension — the origin is on
+                                    every tile for exactly that reason.
+                                </p>
+                            </div>
+                            <div class="card">
+                                <table class="facts">
+                                    <tr><td>Kit</td><td>Vendored — this repo owns a copy of <code>kit/</code></td></tr>
+                                    <tr><td>Apps</td><td>Remembered by URL; the code is never copied here</td></tr>
+                                    <tr><td>Storage</td><td>Your installed list lives in this browser only</td></tr>
+                                    <tr><td>Accounts</td><td>None. There is no server</td></tr>
+                                    <tr><td>Build step</td><td>None, by design</td></tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <sac-footer brand="SACRVM DESKTOP"
+                                link-href="https://github.com/SACRVM/sacrvm-desktop" link-label="GITHUB"></sac-footer>
+                </div>
+                <!-- View apps are appended here by sac.apps. -->
+            </div>
+        </div>
+    </div>
+
+    <sac-command-palette></sac-command-palette>
+</body>
+</html>

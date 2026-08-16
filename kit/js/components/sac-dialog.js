@@ -1,0 +1,291 @@
+/**
+ * <sac-dialog>  —  Modal confirm dialog.
+ *
+ * Shadow-DOM, glass-styled, centered overlay. General primitive; the common
+ * "ask a question, get an answer" case is wrapped by `sac.dialog.confirm()`
+ * (kit/js/lib/dialog.js).
+ *
+ * Usage:
+ *   const dlg = document.createElement("sac-dialog");
+ *   dlg.setAttribute("title", "Delete?");
+ *   dlg.buttons = [
+ *     { action: "cancel", label: "Cancel", kind: "default" },
+ *     { action: "delete", label: "Delete", kind: "destructive", armAfterMs: 2000 },
+ *   ];
+ *   dlg.append(Object.assign(document.createElement("p"), { textContent: "…" }));
+ *   document.body.appendChild(dlg);
+ *   dlg.addEventListener("sac-dialog:action", e => console.log(e.detail.action));
+ *   dlg.open();
+ *
+ * Keyboard:
+ *   - Escape            → close with action=null.
+ *   - Enter             → activates focused button (native).
+ *   - Tab / Shift-Tab   → cycles between buttons (focus trap).
+ *
+ * Arming:
+ *   - A button with armAfterMs waits N ms, then receives focus so Enter acts.
+ *   - If the user's pointer enters any other button before the arm fires, the
+ *     timer is cancelled — we don't steal focus from an actively-interacting
+ *     user.
+ */
+class SacDialog extends HTMLElement {
+    constructor() {
+        super();
+        this.attachShadow({ mode: "open" });
+        this.buttons = [];
+        this._armTimer = null;
+        this._resolved = false;
+        this._onKeydown = this._onKeydown.bind(this);
+    }
+
+    static get observedAttributes() { return ["title"]; }
+
+    connectedCallback() {
+        if (!this.shadowRoot.firstChild) this._render();
+    }
+
+    attributeChangedCallback() {
+        if (this.shadowRoot.firstChild) this._renderHeader();
+    }
+
+    open() {
+        this._resolved = false;
+        this._render();
+        this.setAttribute("open", "");
+        // Host focus so keydown routes here even before any button is focused.
+        this.focus();
+        document.addEventListener("keydown", this._onKeydown, true);
+        this._startArmTimer();
+        this.dispatchEvent(new CustomEvent("sac-dialog:open"));
+    }
+
+    close(action = null) {
+        if (this._resolved) return;
+        this._resolved = true;
+        this._cancelArmTimer();
+        document.removeEventListener("keydown", this._onKeydown, true);
+        this.removeAttribute("open");
+        this.dispatchEvent(new CustomEvent("sac-dialog:action", { detail: { action } }));
+    }
+
+    _onKeydown(e) {
+        if (e.key === "Escape") {
+            e.stopPropagation();
+            e.preventDefault();
+            this.close(null);
+            return;
+        }
+        if (e.key === "Tab") {
+            // Focus trap across the dialog's own buttons.
+            const btns = Array.from(this.shadowRoot.querySelectorAll(".btn"));
+            if (btns.length === 0) return;
+            const active = this.shadowRoot.activeElement;
+            const idx = btns.indexOf(active);
+            let next;
+            if (e.shiftKey) next = btns[(idx <= 0 ? btns.length : idx) - 1];
+            else            next = btns[(idx + 1) % btns.length];
+            e.preventDefault();
+            next.focus();
+        }
+    }
+
+    _startArmTimer() {
+        const armed = this.buttons.findIndex(b => b.armAfterMs > 0);
+        if (armed < 0) return;
+        const ms = this.buttons[armed].armAfterMs;
+        this._armTimer = setTimeout(() => {
+            this._armTimer = null;
+            const btn = this.shadowRoot.querySelectorAll(".btn")[armed];
+            if (!btn) return;
+            // .armed gives the explicit visual cue — :focus-visible won't
+            // fire reliably for programmatic focus (Chrome hides the ring
+            // when focus is set by script without a prior keyboard event).
+            btn.classList.add("armed");
+            btn.focus();
+        }, ms);
+    }
+
+    _cancelArmTimer() {
+        if (this._armTimer != null) {
+            clearTimeout(this._armTimer);
+            this._armTimer = null;
+        }
+    }
+
+    _render() {
+        this.shadowRoot.innerHTML = `
+            <style>
+                :host {
+                    position: fixed;
+                    inset: 0;
+                    z-index: 20000;
+                    display: none;
+                    align-items: center;
+                    justify-content: center;
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                    outline: none;
+                }
+                :host([open]) { display: flex; }
+
+                .backdrop {
+                    position: absolute;
+                    inset: 0;
+                    background: color-mix(in srgb, var(--sink) 50%, transparent);
+                    backdrop-filter: blur(8px);
+                    -webkit-backdrop-filter: blur(8px);
+                    opacity: 0;
+                    animation: fade-in 150ms ease-out forwards;
+                }
+
+                .panel {
+                    position: relative;
+                    width: 420px;
+                    max-width: calc(100vw - 32px);
+                    background: color-mix(in srgb, var(--surface) 75%, transparent);
+                    backdrop-filter: blur(20px) saturate(180%);
+                    -webkit-backdrop-filter: blur(20px) saturate(180%);
+                    border: 1px solid var(--border-strong);
+                    border-radius: var(--radius-l);
+                    box-shadow:
+                        0 20px 50px color-mix(in srgb, var(--sink) 50%, transparent),
+                        inset 0 0 0 1px color-mix(in srgb, var(--fg) 5%, transparent);
+                    opacity: 0;
+                    transform: scale(0.96);
+                    animation: pop-in 150ms ease-out forwards;
+                    color: var(--text);
+                }
+
+                .title {
+                    font-family: 'Outfit', sans-serif;
+                    font-weight: 700;
+                    font-size: 1.05rem;
+                    letter-spacing: -0.01em;
+                    padding: 20px 20px 0;
+                    color: var(--text);
+                }
+
+                .body {
+                    padding: 8px 20px 20px;
+                    font-size: 0.9rem;
+                    line-height: 1.5;
+                    color: var(--text-muted);
+                }
+                .body ::slotted(p) { margin: 0; }
+                .body ::slotted(p + p) { margin-top: 8px; }
+
+                .actions {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 8px;
+                    padding: 12px 20px 20px;
+                }
+
+                /* Shared language for all three kinds: subtle tinted bg,
+                   colored text, matching-color border on hover. The only
+                   difference between kinds is the accent hue. */
+                .btn {
+                    font: 600 0.85rem 'Inter', sans-serif;
+                    padding: 8px 16px;
+                    border-radius: var(--radius-m);
+                    cursor: pointer;
+                    border: 1px solid transparent;
+                    background: color-mix(in srgb, var(--fg) 6%, transparent);
+                    color: var(--text);
+                    transition: background 120ms, color 120ms, border-color 120ms, box-shadow 120ms;
+                    outline: none;
+                }
+                .btn:hover {
+                    background: var(--hover-strong);
+                    border-color: color-mix(in srgb, var(--fg) 18%, transparent);
+                }
+                .btn:focus-visible {
+                    outline: 2px solid var(--accent);
+                    outline-offset: 2px;
+                }
+
+                /* Ghost buttons: translucent washes, so the ink must follow
+                   the THEME (-text variants / --text), never --on-accent —
+                   white on a pale wash is unreadable in light. */
+                .btn.primary {
+                    background: color-mix(in srgb, var(--accent) 18%, transparent);
+                    color: var(--accent-text);
+                    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+                }
+                .btn.primary:hover {
+                    background: color-mix(in srgb, var(--accent) 32%, transparent);
+                    color: var(--text);
+                    border-color: var(--accent);
+                }
+
+                .btn.destructive {
+                    background: color-mix(in srgb, var(--danger) 12%, transparent);
+                    color: var(--danger-text);
+                    border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+                }
+                .btn.destructive:hover {
+                    background: color-mix(in srgb, var(--danger) 26%, transparent);
+                    color: var(--text);
+                    border-color: var(--danger);
+                }
+                .btn.destructive:focus-visible {
+                    outline-color: var(--danger);
+                }
+
+                /* .armed is added by the arming timer so the destructive
+                   button has an unmistakable cue independent of
+                   :focus-visible (which JS focus can't reliably trigger). */
+                .btn.armed {
+                    background: color-mix(in srgb, var(--danger) 26%, transparent);
+                    color: var(--text);
+                    border-color: var(--danger);
+                    box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 28%, transparent);
+                }
+
+                @keyframes fade-in {
+                    to { opacity: 1; }
+                }
+                @keyframes pop-in {
+                    to { opacity: 1; transform: scale(1); }
+                }
+            </style>
+            <div class="backdrop" part="backdrop"></div>
+            <div class="panel" part="panel" role="dialog" aria-modal="true">
+                <div class="title" id="dlg-title"></div>
+                <div class="body"><slot></slot></div>
+                <div class="actions"></div>
+            </div>
+        `;
+        this._renderHeader();
+        this._renderButtons();
+        this.shadowRoot.querySelector(".backdrop").addEventListener("click", () => this.close(null));
+    }
+
+    _renderHeader() {
+        const el = this.shadowRoot.getElementById("dlg-title");
+        if (el) el.textContent = this.getAttribute("title") || "";
+    }
+
+    _renderButtons() {
+        const row = this.shadowRoot.querySelector(".actions");
+        row.innerHTML = "";
+        this.buttons.forEach((spec) => {
+            const btn = document.createElement("button");
+            btn.className = "btn" + (spec.kind && spec.kind !== "default" ? " " + spec.kind : "");
+            btn.type = "button";
+            btn.textContent = spec.label;
+            btn.addEventListener("click", () => this.close(spec.action));
+            btn.addEventListener("mouseenter", () => {
+                // Any pointer interaction with a *different* button cancels
+                // the arm timer so we don't yank focus from the user.
+                if (this._armTimer != null) {
+                    const armedIdx = this.buttons.findIndex(b => b.armAfterMs > 0);
+                    const myIdx = this.buttons.indexOf(spec);
+                    if (myIdx !== armedIdx) this._cancelArmTimer();
+                }
+            });
+            row.appendChild(btn);
+        });
+    }
+}
+
+customElements.define("sac-dialog", SacDialog);
