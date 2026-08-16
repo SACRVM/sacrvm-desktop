@@ -44,9 +44,11 @@
                 }, { once: true });
 
                 document.body.appendChild(dlg);
-                // Give the browser one frame to register the element so the
-                // open animation actually runs (otherwise it starts mid-anim).
-                requestAnimationFrame(() => dlg.open());
+                // Let the element register before opening, so the open
+                // animation starts from its closed state. A timeout, not
+                // requestAnimationFrame: a background tab paints no frames,
+                // and a dialog that never opens would hang its promise.
+                setTimeout(() => dlg.open(), 0);
             });
         },
     };

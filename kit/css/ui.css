@@ -129,13 +129,19 @@
    (The cascade still lets a brand pin an individual derived token if it
    truly must — that is the escape hatch, not the mechanism.)
 
-   Also derived ON the per-app hosts, not only on :root. A view app or a
-   floating window that carries its own --accent (sac.apps manifest.accent)
-   would otherwise get half a retheme: direct var(--accent) users follow it,
-   while everything derived still resolves against the root's accent. Same
-   rule, one seed, wherever the seed is set.
+   Also derived ON the per-app hosts, not only on :root. An app that carries
+   its own --accent would otherwise get half a retheme: direct var(--accent)
+   users follow it, while everything derived still resolves against the root's
+   accent — custom properties are substituted where they are DECLARED, so a
+   derivation living only on :root has the root's seed baked in.
+
+   .sac-app is set by sac.app.Element on every app element, so an app is an
+   accent scope wherever it runs — on a desktop's stage, in a window, or
+   alone in its own page. .sac-app-view and sac-window cover apps that
+   implement the contract by hand.
    -------------------------------------------------------------------------- */
 :root,
+.sac-app,
 .sac-app-view,
 sac-window {
     /* Surfaces */
@@ -734,7 +740,10 @@ kbd {
     padding: 2.5rem 1rem;
     gap: 0.4rem;
 }
-.empty-state sac-icon {
+/* Direct child only: an empty state usually carries a button that offers the
+   way out, and a descendant selector would paint that button's icon dim too
+   — grey ink on a filled accent surface. */
+.empty-state > sac-icon {
     --icon-size: 36px;
     color: var(--text-dim);
     margin-bottom: 0.5rem;
@@ -881,7 +890,10 @@ kbd {
     transform: translateZ(0);
     backface-visibility: hidden;
 }
-.tile sac-icon {
+/* Direct child only, same reason as .empty-state: the tile's own mark is
+   48px and accent-coloured, an icon inside something nested in the tile is
+   not. (Every tile in the kit and the launcher appends it directly.) */
+.tile > sac-icon {
     --icon-size: 48px;
     margin-bottom: auto;
     color: var(--accent);
@@ -907,7 +919,7 @@ kbd {
     box-shadow: var(--shadow-2), 0 0 20px color-mix(in srgb, var(--accent) 20%, transparent);
     background: var(--tile-hover);
 }
-.tile:hover sac-icon {
+.tile:hover > sac-icon {
     transform: scale(1.1) rotate(5deg);
 }
 

@@ -131,6 +131,10 @@
      */
     class SacAppElement extends HTMLElement {
         connectedCallback() {
+            // Marks the element as an accent scope: ui.css re-derives the
+            // accent tokens here, so an app that sets its own --accent gets a
+            // WHOLE retheme, and gets it wherever it runs.
+            this.classList.add("sac-app");
             if (!this._sacBuilt) {
                 this._sacBuilt = true;
                 if (typeof this.build === "function") this.build();

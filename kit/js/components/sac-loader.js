@@ -28,7 +28,10 @@ class SacLoader extends HTMLElement {
         const overlay = this.shadowRoot.querySelector(".overlay");
         if (overlay) {
             overlay.style.display = "flex";
-            requestAnimationFrame(() => overlay.style.opacity = "1");
+            // A timeout, not requestAnimationFrame: a background tab paints
+            // no frames, so the fade-in would sit at opacity 0 — an overlay
+            // that is displayed but invisible.
+            setTimeout(() => { overlay.style.opacity = "1"; }, 0);
         }
     }
 

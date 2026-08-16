@@ -596,8 +596,10 @@
             catch (err) { console.error(`[sac.apps] ${id}.mount() threw:`, err); }
         }
 
-        // Defer open() to the next frame so CSS transitions trigger.
-        requestAnimationFrame(() => win.open());
+        // Defer open() so the CSS transition starts from the closed state.
+        // A timeout, not requestAnimationFrame: a background tab paints no
+        // frames, and the window would stay shut until it is looked at.
+        setTimeout(() => win.open(), 0);
         return el;
     }
 
