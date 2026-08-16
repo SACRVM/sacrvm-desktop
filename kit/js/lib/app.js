@@ -45,7 +45,7 @@
  *   sac.app.context(el)       → the context an app gets with no host around
  *                               (rarely called directly — Element does it)
  *
- * Standalone fallback: when nothing calls mount() by the next frame, the
+ * Standalone fallback: when nothing calls mount() right after connect, the
  * element mounts itself with a context built from the page — query params,
  * the hash as the route, the page's <sac-sidebar> if it has one, and the
  * kit's theme. Same app file, same code path, no shell required.

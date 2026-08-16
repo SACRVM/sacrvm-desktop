@@ -594,8 +594,9 @@
             <p class="hint">Nothing to open yet?
                <button type="button" class="link-btn examples-btn">Install the two example apps</button>
                — or, to write your own,
-               <a href="https://sacrvm.github.io/sacrvm-appkit/kit/templates/">start from a template</a>:
-               a dialog app or a fullscreen app, both a handful of lines.</p>
+               <a href="https://sacrvm.github.io/sacrvm-appkit/#/build" target="_blank" rel="noopener">read
+               how an app is built</a>: a manifest, one custom element, and a
+               template repository to start from.</p>
         `;
         dlg.appendChild(wrap);
 

@@ -42,8 +42,9 @@ index.html   the harness: the app alone, no desktop, F5 to develop
 `kind` is `"window"` (a dialog-style app, floating) or `"view"` (a fullscreen
 app that takes the stage and projects its navigation into the rail).
 
-Start from a template:
-<https://sacrvm.github.io/sacrvm-appkit/kit/templates/>
+How to write one, end to end:
+<https://sacrvm.github.io/sacrvm-appkit/#/build> — and the starting point,
+<https://github.com/SACRVM/sacrvm-app-template> (*Use this template*).
 
 ## Known gaps
 
