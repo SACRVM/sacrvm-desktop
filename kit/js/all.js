@@ -41,6 +41,7 @@
         "lib/hotkeys.js",
         "lib/color.js",
         "lib/fs.js",      // storage capability — apps.js hands it to apps
+        "lib/identity.js",// who is at this desktop (rides on the fs backend)
         "lib/app.js",     // the app-side toolkit (apps.js is the host side)
 
         // components — any order, except where a comment says otherwise

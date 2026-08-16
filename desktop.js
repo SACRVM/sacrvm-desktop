@@ -511,6 +511,16 @@
         const wrap = document.createElement("div");
         wrap.className = "settings";
         wrap.innerHTML = `
+            <label for="me-name">You</label>
+            <input type="text" id="me-name" class="me-name" placeholder="Your name"
+                   autocomplete="off" maxlength="80">
+            <input type="url" id="me-avatar-src" class="me-avatar-src"
+                   placeholder="Picture URL (optional)" autocomplete="off">
+            <p class="hint">Apps can read this to greet you and colour your avatar.
+               It is a name in this browser, nothing more — no account, no
+               password, nothing verified, and nothing leaves this device unless
+               an app you installed sends it.</p>
+
             <label>Theme</label>
             <sac-theme-toggle></sac-theme-toggle>
 
@@ -534,6 +544,29 @@
             </div>
         `;
         dlg.appendChild(wrap);
+
+        /* Identity. The desktop owns the profile — apps only read it — so this
+           field is the one place it is written. Committed on change (blur or
+           Enter), because saving on every keystroke would rename you five times
+           while you type your own name. */
+        const nameField   = wrap.querySelector(".me-name");
+        const avatarField = wrap.querySelector(".me-avatar-src");
+
+        function fillIdentity() {
+            const me = sac.identity ? sac.identity.get() : null;
+            nameField.value   = me ? me.name : "";
+            avatarField.value = (me && me.avatar) || "";
+        }
+
+        const commitIdentity = () => {
+            if (!sac.identity) return;
+            const name = nameField.value.trim();
+            if (!name) sac.identity.clear();
+            else sac.identity.set({ name, avatar: avatarField.value.trim() || undefined });
+        };
+        nameField.addEventListener("change", commitIdentity);
+        avatarField.addEventListener("change", commitIdentity);
+        nameField.addEventListener("keydown", (e) => { if (e.key === "Enter") nameField.blur(); });
 
         const grid   = wrap.querySelector(".accent-swatches");
         const custom = wrap.querySelector(".accent-custom");
@@ -658,12 +691,15 @@
         });
 
         // Recount on every opening: apps come and go between them.
-        dlg.addEventListener("sac-dialog:open", showOrphans);
+        dlg.addEventListener("sac-dialog:open", () => { showOrphans(); fillIdentity(); });
+        // A dialog dismissed with Escape still means what was typed in it.
+        dlg.addEventListener("sac-dialog:action", commitIdentity);
         dlg.addEventListener("sac-dialog:action", () => { /* stays in the DOM */ });
 
         document.body.appendChild(dlg);
         settingsDialog = dlg;
         mark(storedAccent() || "#3b82f6");
+        fillIdentity();
         dlg.open();
     }
 
@@ -745,6 +781,23 @@
         applyAccent(storedAccent());
         el("info-btn").addEventListener("click", openInfo);
         el("settings-btn").addEventListener("click", openSettings);
+
+        // The badge is the profile made visible — and the way back to editing
+        // it. Absent while nobody has said who they are.
+        const meBtn = el("me-btn"), meAvatar = el("me-avatar");
+        function paintMe(profile) {
+            const me = profile !== undefined ? profile
+                     : (window.sac.identity ? sac.identity.get() : null);
+            meBtn.hidden = !me;
+            if (!me) return;
+            meAvatar.setAttribute("name", me.name);
+            if (me.avatar) meAvatar.setAttribute("src", me.avatar);
+            else meAvatar.removeAttribute("src");
+            meBtn.title = me.name;
+            meBtn.setAttribute("aria-label", `You: ${me.name}`);
+        }
+        meBtn.addEventListener("click", openSettings);
+        if (window.sac.identity) { paintMe(); sac.identity.onChange(paintMe); }
 
         sac.apps.init({ viewHost: "#app-stage", home: "#app-home" });
 

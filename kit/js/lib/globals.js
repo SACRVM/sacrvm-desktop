@@ -2,7 +2,7 @@
  * SACRVM APPKIT — global namespace.
  * Load FIRST (classic deferred script). Populated incrementally by the other
  * lib scripts: icons.js, router.js, scope.js, dialog.js, pan-zoom.js,
- * apps.js, hotkeys.js, color.js, fs.js.
+ * apps.js, hotkeys.js, color.js, fs.js, identity.js.
  *
  * Consumers (and mods) use window.sac to interact with the system without
  * rebuilding a component (e.g. sac.icons.register, sac.router.navigate).
@@ -18,6 +18,7 @@
         hotkeys:  null, // populated by hotkeys.js
         color:    null, // populated by color.js (shared color math)
         fs:       null, // populated by fs.js (per-app storage behind context.fs)
+        identity: null, // populated by identity.js (who is at this desktop)
         apps:     null, // populated by apps.js (app registry, windows, deep links)
         commands: null, // installed by sac-command-palette.js (app command registry)
         palette:  null, // installed by sac-command-palette.js (the connected instance)

@@ -27,6 +27,11 @@
          the apps. Installing lives in the grid, where the apps are. -->
     <sac-nav brand="SACRVM" brand-icon="cube" brand-href="#/" app-name="DESKTOP">
         <div slot="toolbar" class="toolbar">
+            <!-- Only there once somebody said who they are: anonymous is the
+                 default, and an empty badge would be chrome about nothing. -->
+            <button class="nav-icon-btn who-btn" id="me-btn" hidden title="You" aria-label="You">
+                <sac-avatar id="me-avatar" style="--avatar-size: 26px"></sac-avatar>
+            </button>
             <button class="nav-icon-btn" id="info-btn" title="How this works" aria-label="How this works">
                 <sac-icon name="info"></sac-icon>
             </button>

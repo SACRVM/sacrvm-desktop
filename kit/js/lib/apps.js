@@ -136,7 +136,10 @@
  *           write(path, value),    // apps check before reaching for it
  *           remove(path), list(prefix), clear(), usage(), watch(cb),
  *       },
- *       identity: null,            // reserved — future shell identity capability
+ *       identity: {                // who is at this desktop (kit/js/lib/identity.js),
+ *           get(),                 // null when the host granted none. READ-ONLY:
+ *           onChange(cb),          // the profile belongs to the host, not to an app
+ *       },
  *   }
  *
  * Events:
@@ -266,7 +269,9 @@
             // grants no storage simply does not load it, and apps see null —
             // which is why an app still checks before reaching for it.
             fs: window.sac.fs ? sac.fs.for(id) : null,
-            identity: null, // reserved — future shell identity capability
+            // Read-only: an app learns who is here, it does not get to rename
+            // them everywhere. Null when the host granted no identity.
+            identity: window.sac.identity ? sac.identity.forApp() : null,
         };
 
         if (manifest.kind !== "view") {

@@ -126,6 +126,16 @@
 }
 .tile-add:hover > sac-icon { color: var(--accent); }
 
+/* The profile badge in the ribbon: an avatar, not an icon, so it gets no icon
+   padding and keeps its own round shape. */
+.who-btn {
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.who-btn[hidden] { display: none; }
+
 /* Dialog bodies: settings and info. */
 .settings, .info { display: flex; flex-direction: column; gap: 0.5rem; }
 .settings label {

@@ -46,12 +46,21 @@ How to write one, end to end:
 <https://sacrvm.github.io/sacrvm-appkit/#/build> — and the starting point,
 <https://github.com/SACRVM/sacrvm-app-template> (*Use this template*).
 
+## What this desktop grants
+
+Both capability slots of the app contract are filled here — a host is free to
+grant neither, which is why apps check before using them.
+
+- **`context.fs`** — this browser's storage, one drawer per app. Removing an app
+  keeps its data and says how much there is; a second button deletes it.
+- **`context.identity`** — a name and an optional picture, set in Settings and
+  read-only for apps. **Not authentication**: nothing is verified, and nothing
+  leaves this device unless an app you installed sends it.
+
 ## Known gaps
 
-- `context.identity` is reserved and still `null`.
-- `context.fs` is granted (this browser's storage, one drawer per app). Removing
-  an app keeps its data by default and offers to delete it; nothing prunes the
-  drawer of an app you never reinstall.
+- Nothing prunes the drawer of an app you never reinstall; Settings shows
+  leftovers and can delete them, but only when you look.
 - Installed apps are not version-pinned: the desktop re-reads the origin, so
   an author's next release is simply there.
 - A text-input dialog is hand-rolled here (`promptUrl` in `desktop.js`); once

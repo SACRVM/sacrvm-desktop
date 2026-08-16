@@ -128,7 +128,7 @@
             // as long as the tag follows the naming above: develop standalone,
             // install later, and what you saved is still there.
             fs: window.sac.fs ? sac.fs.for(id) : null,
-            identity: null, // reserved — the shell grows this, not the app
+            identity: window.sac.identity ? sac.identity.forApp() : null,
         };
     }
 
