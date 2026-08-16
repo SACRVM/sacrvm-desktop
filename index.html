@@ -23,11 +23,15 @@
     <script defer src="desktop.js"></script>
 </head>
 <body class="app-page">
+    <!-- The ribbon stays quiet: two icon buttons, no chrome competing with
+         the apps. Installing lives in the grid, where the apps are. -->
     <sac-nav brand="SACRVM" brand-icon="cube" brand-href="#/" app-name="DESKTOP">
-        <div slot="context"><sac-theme-toggle></sac-theme-toggle></div>
         <div slot="toolbar" class="toolbar">
-            <button class="btn primary" id="install-btn">
-                <sac-icon name="plus"></sac-icon> Install app
+            <button class="nav-icon-btn" id="info-btn" title="How this works" aria-label="How this works">
+                <sac-icon name="info"></sac-icon>
+            </button>
+            <button class="nav-icon-btn" id="settings-btn" title="Settings" aria-label="Settings">
+                <sac-icon name="settings"></sac-icon>
             </button>
         </div>
     </sac-nav>
@@ -47,50 +51,14 @@
                             <p class="intro-text">
                                 A desktop you fill yourself. Paste the URL of an app repository and it
                                 is installed — the desktop remembers where the app lives, never a copy
-                                of it, so the author's next release is simply there.
+                                of it. Make it yours in <strong>Settings</strong>, or read
+                                <strong>how this works</strong> — both up in the ribbon.
                             </p>
                         </header>
 
+                        <!-- Apps, then the install tile that closes the row.
+                             desktop.js keeps that tile last on every render. -->
                         <main class="grid" id="tiles"></main>
-
-                        <p class="empty" id="empty" hidden>
-                            Nothing installed yet. <button class="link-btn" id="empty-install">Install an app</button>
-                            — or start from the
-                            <a href="https://sacrvm.github.io/sacrvm-appkit/kit/templates/">templates</a>.
-                        </p>
-                    </div>
-
-                    <div class="section">
-                        <h2>How installing works</h2>
-                        <p class="lead">
-                            One repo, one app, always the same shape — so a URL is enough.
-                        </p>
-                        <div class="two-col">
-                            <div class="card">
-                                <ol class="steps">
-                                    <li>You paste <code>github.com/owner/repo</code>.</li>
-                                    <li>The desktop reads <code>owner.github.io/repo/app.json</code> —
-                                        a fetch, not an execution.</li>
-                                    <li>It shows you what the manifest says, and where it came from.</li>
-                                    <li>You confirm. Only then is the app's script ever loaded, and
-                                        only when you first open the app.</li>
-                                </ol>
-                                <p class="note">
-                                    An installed app runs its own code in this page. Install what you
-                                    trust, the way you would a browser extension — the origin is on
-                                    every tile for exactly that reason.
-                                </p>
-                            </div>
-                            <div class="card">
-                                <table class="facts">
-                                    <tr><td>Kit</td><td>Vendored — this repo owns a copy of <code>kit/</code></td></tr>
-                                    <tr><td>Apps</td><td>Remembered by URL; the code is never copied here</td></tr>
-                                    <tr><td>Storage</td><td>Your installed list lives in this browser only</td></tr>
-                                    <tr><td>Accounts</td><td>None. There is no server</td></tr>
-                                    <tr><td>Build step</td><td>None, by design</td></tr>
-                                </table>
-                            </div>
-                        </div>
                     </div>
 
                     <sac-footer brand="SACRVM DESKTOP"

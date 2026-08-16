@@ -47,8 +47,6 @@
 
     function renderTiles() {
         const grid = el("tiles");
-        el("empty").hidden = installed.length > 0;
-
         grid.replaceChildren(...installed.map((m) => {
             // A view app is addressed by hash, so it is a plain link; a window
             // app opens in place, so it is a [data-app] tile. Same as any
@@ -74,21 +72,81 @@
             meta.textContent = `${originLabel(m)}${m.version ? " · v" + m.version : ""}`;
             body.append(h2, desc, meta);
 
-            const remove = document.createElement("button");
-            remove.className = "tile-remove";
-            remove.type = "button";
-            remove.title = `Uninstall ${m.name}`;
-            remove.setAttribute("aria-label", `Uninstall ${m.name}`);
-            remove.textContent = "×";
-            remove.addEventListener("click", (e) => {
-                e.preventDefault();
-                e.stopPropagation();     // the tile itself is a link
-                uninstall(m);
-            });
-
-            tile.append(icon, body, remove);
+            tile.append(icon, body, tileMenu(m));
+            if (m.tile === "wide" || m.tile === "large") tile.classList.add("size-" + m.tile);
             return tile;
         }));
+
+        // The tile that closes the grid: installing belongs where the apps
+        // are, not in the chrome. Dashed, like the kit's own add tile — it
+        // reads as "a slot", not as an app.
+        const add = document.createElement("button");
+        add.type = "button";
+        add.className = "tile tile-add";
+        add.id = "install-tile";
+        const addIcon = document.createElement("sac-icon");
+        addIcon.setAttribute("name", "plus");
+        const addLabel = document.createElement("span");
+        addLabel.textContent = installed.length ? "Install app" : "Install your first app";
+        add.append(addIcon, addLabel);
+        add.addEventListener("click", promptInstall);
+        grid.appendChild(add);
+    }
+
+    /**
+     * The tile's own menu: size, and the way out. A menu rather than a bare
+     * × — an × invites a misclick and says nothing about what it removes.
+     */
+    function tileMenu(manifest) {
+        const menu = document.createElement("sac-menu");
+        menu.className = "tile-menu";
+
+        const trigger = document.createElement("button");
+        trigger.slot = "trigger";
+        trigger.type = "button";
+        trigger.className = "tile-menu-btn";
+        trigger.title = `${manifest.name} options`;
+        trigger.setAttribute("aria-label", `${manifest.name} options`);
+        trigger.textContent = "⋯";          // midline horizontal ellipsis
+        menu.appendChild(trigger);
+
+        const item = (action, label, danger) => {
+            const b = document.createElement("button");
+            b.dataset.action = action;
+            b.textContent = label;
+            if (danger) b.setAttribute("data-danger", "");
+            if (action.startsWith("size:") &&
+                (manifest.tile || "medium") === action.slice(5)) {
+                b.textContent = "✓ " + label;   // the current size, marked
+            }
+            return b;
+        };
+
+        menu.append(
+            item("size:medium", "Medium tile"),
+            item("size:wide",   "Wide tile"),
+            item("size:large",  "Large tile"),
+            document.createElement("hr"),
+            item("remove", "Remove from this desktop", true),
+        );
+
+        menu.addEventListener("sac:menu-select", (e) => {
+            const action = e.detail.action;
+            if (action === "remove") { uninstall(manifest); return; }
+            if (action.startsWith("size:")) setTileSize(manifest, action.slice(5));
+        });
+
+        // The tile is a link: a click inside its menu must not follow it.
+        menu.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); });
+        return menu;
+    }
+
+    function setTileSize(manifest, size) {
+        const entry = installed.find((m) => m.id === manifest.id);
+        if (!entry) return;
+        entry.tile = size;
+        save(installed);
+        renderTiles();
     }
 
     function originLabel(manifest) {
@@ -141,11 +199,14 @@
 
     async function uninstall(manifest) {
         const answer = await sac.dialog.confirm({
-            title: `Uninstall ${manifest.name}?`,
-            message: "The app is forgotten here. Nothing is deleted at its origin, and installing it again takes one paste.",
+            title: `Remove ${manifest.name}?`,
+            message:
+                `It is removed from THIS browser's desktop — that is the only place it was.\n\n` +
+                `The app itself stays at ${originLabel(manifest)}, untouched, and ` +
+                `installing it again is one paste.`,
             buttons: [
                 { action: "cancel", label: "Cancel", kind: "default" },
-                { action: "remove", label: "Uninstall", kind: "destructive" },
+                { action: "remove", label: "Remove", kind: "destructive" },
             ],
         });
         if (answer !== "remove") return;
@@ -204,6 +265,178 @@
         if (url) await install(url);
     }
 
+    /* ----------------------------------------------------------- settings */
+
+    const ACCENT_KEY = "sacrvm.desktop.accent";
+    // Seeds, not a palette: each one is a whole theme, because everything
+    // accent-derived follows it. The kit's default leads.
+    const ACCENTS = [
+        { value: "#3b82f6", label: "Blue (default)" },
+        { value: "#14b8a6", label: "Teal" },
+        { value: "#10b981", label: "Green" },
+        { value: "#a855f7", label: "Violet" },
+        { value: "#ec4899", label: "Pink" },
+        { value: "#f97316", label: "Orange" },
+        { value: "#eab308", label: "Yellow" },
+        { value: "#64748b", label: "Slate" },
+    ];
+
+    function applyAccent(value) {
+        if (value) document.documentElement.style.setProperty("--accent", value);
+        else document.documentElement.style.removeProperty("--accent");
+    }
+
+    function storedAccent() {
+        try { return localStorage.getItem(ACCENT_KEY) || ""; }
+        catch (err) { return ""; }
+    }
+
+    function setAccent(value) {
+        applyAccent(value);
+        try {
+            if (value) localStorage.setItem(ACCENT_KEY, value);
+            else localStorage.removeItem(ACCENT_KEY);
+        } catch (err) { /* a desktop without storage still themes fine */ }
+    }
+
+    /**
+     * Built once and kept: the theme toggle inside it is the kit's one source
+     * of truth for the theme, so it must not be thrown away between openings.
+     */
+    let settingsDialog = null;
+
+    function openSettings() {
+        if (settingsDialog) { settingsDialog.open(); return; }
+
+        const dlg = document.createElement("sac-dialog");
+        dlg.setAttribute("title", "Settings");
+        dlg.buttons = [{ action: "done", label: "Done", kind: "primary" }];
+
+        const wrap = document.createElement("div");
+        wrap.className = "settings";
+        wrap.innerHTML = `
+            <label>Theme</label>
+            <sac-theme-toggle></sac-theme-toggle>
+
+            <label>Accent</label>
+            <sac-swatch-grid columns="8" selectable class="accent-swatches">
+                ${ACCENTS.map((a) => `<sac-swatch value="${a.value}" label="${a.label}"></sac-swatch>`).join("")}
+            </sac-swatch-grid>
+            <sac-color-field label="Custom" class="accent-custom"></sac-color-field>
+            <p class="hint">One seed re-themes the whole desktop. An app that
+               brings its own accent keeps it — that is the app's identity, not
+               yours.</p>
+
+            <label>This desktop</label>
+            <p class="hint">Your apps and these settings live in this browser,
+               on this device. Nobody else sees them, and there is no account
+               to lose them with.</p>
+            <button type="button" class="btn danger remove-all">Remove all apps</button>
+        `;
+        dlg.appendChild(wrap);
+
+        const grid   = wrap.querySelector(".accent-swatches");
+        const custom = wrap.querySelector(".accent-custom");
+
+        const mark = (value) => {
+            const v = (value || "#3b82f6").toLowerCase();
+            grid.querySelectorAll("sac-swatch").forEach((s) => {
+                s.toggleAttribute("selected", s.getAttribute("value").toLowerCase() === v);
+            });
+            if (custom.value.toLowerCase() !== v) custom.value = v;
+        };
+
+        grid.addEventListener("sac:swatch-select", (e) => {
+            setAccent(e.detail.value);
+            mark(e.detail.value);
+        });
+        // The field fires only on user changes, so this cannot loop with mark().
+        custom.addEventListener("sac:color-change", (e) => {
+            setAccent(e.detail.value);
+            mark(e.detail.value);
+        });
+
+        wrap.querySelector(".remove-all").addEventListener("click", async () => {
+            if (!installed.length) {
+                if (typeof sac.toast === "function") sac.toast("Nothing installed.", { kind: "info" });
+                return;
+            }
+            const answer = await sac.dialog.confirm({
+                title: `Remove all ${installed.length} apps?`,
+                message:
+                    "This browser's desktop is emptied. Every app stays where it lives — " +
+                    "nothing is deleted at any origin.",
+                buttons: [
+                    { action: "cancel", label: "Cancel", kind: "default" },
+                    { action: "wipe", label: "Remove all", kind: "destructive", armAfterMs: 1200 },
+                ],
+            });
+            if (answer !== "wipe") return;
+            installed.slice().forEach((m) => sac.apps.remove(m.id));
+            installed = [];
+            save(installed);
+            renderTiles();
+        });
+
+        dlg.addEventListener("sac-dialog:action", () => { /* stays in the DOM */ });
+
+        document.body.appendChild(dlg);
+        settingsDialog = dlg;
+        mark(storedAccent() || "#3b82f6");
+        dlg.open();
+    }
+
+    /* --------------------------------------------------------------- info */
+
+    let infoDialog = null;
+
+    function openInfo() {
+        if (infoDialog) { infoDialog.open(); return; }
+
+        const dlg = document.createElement("sac-dialog");
+        dlg.setAttribute("title", "How this works");
+        dlg.buttons = [{ action: "ok", label: "Got it", kind: "primary" }];
+
+        const wrap = document.createElement("div");
+        wrap.className = "info";
+        wrap.innerHTML = `
+            <h3>Whose desktop is this?</h3>
+            <p><strong>Yours, and only in this browser.</strong> Your installed apps and
+               settings live in this browser's storage, on this device. Another visitor
+               to this address sees an empty desktop; your phone sees a different one.
+               There is no server and no account.</p>
+
+            <h3>Where do the apps live?</h3>
+            <p>At their own origin — <code>owner.github.io/repo/</code> — never here.
+               Installing stores the address and the manifest that was read from it,
+               so the author's next release is simply there.
+               <strong>Removing an app forgets that address in this browser.</strong>
+               Nothing is deleted at the origin, and nothing on GitHub.</p>
+
+            <h3>What installing does</h3>
+            <ol class="steps">
+                <li>You paste <code>github.com/owner/repo</code>.</li>
+                <li>The desktop reads <code>owner.github.io/repo/app.json</code> —
+                    a fetch, not an execution.</li>
+                <li>It shows you what the manifest says, and where it came from.</li>
+                <li>You confirm. Only then is the app's script ever loaded, and only
+                    when you first open the app.</li>
+            </ol>
+            <p class="note">An installed app runs its own code in this page. Install
+               what you trust, the way you would a browser extension — the origin is
+               on every tile for exactly that reason.</p>
+
+            <p class="hint">Want to write one?
+               <a href="https://sacrvm.github.io/sacrvm-appkit/kit/templates/">Start from a template</a>
+               — a dialog app or a fullscreen app, both a handful of lines.</p>
+        `;
+        dlg.appendChild(wrap);
+
+        document.body.appendChild(dlg);
+        infoDialog = dlg;
+        dlg.open();
+    }
+
     /* --------------------------------------------------------------- boot */
 
     function boot() {
@@ -214,8 +447,9 @@
         installed.forEach((m) => sac.apps.register(m));
         renderTiles();
 
-        el("install-btn").addEventListener("click", promptInstall);
-        el("empty-install").addEventListener("click", promptInstall);
+        applyAccent(storedAccent());
+        el("info-btn").addEventListener("click", openInfo);
+        el("settings-btn").addEventListener("click", openSettings);
 
         sac.apps.init({ viewHost: "#app-stage", home: "#app-home" });
 

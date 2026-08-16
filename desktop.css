@@ -55,14 +55,17 @@
     margin-top: 0.35rem;
 }
 
-/* Uninstall: hidden until the tile is hovered or something inside it has
-   focus, so the grid stays calm but the control is always reachable. */
-.tile-remove {
+/* Per-tile menu: size and the way out. Hidden until the tile is hovered or
+   something inside it has focus, so a wall of tiles stays calm — but it is
+   always reachable by keyboard, and it stays open once opened. */
+.tile-menu {
     position: absolute;
-    top: 10px;
-    right: 12px;
-    width: 26px;
-    height: 26px;
+    top: 8px;
+    right: 10px;
+}
+.tile-menu-btn {
+    width: 28px;
+    height: 28px;
     padding: 0;
     display: flex;
     align-items: center;
@@ -79,16 +82,68 @@
                 color 0.15s var(--ease-smooth),
                 background 0.15s var(--ease-smooth);
 }
-.tile:hover .tile-remove,
-.tile:focus-within .tile-remove { opacity: 1; }
-.tile-remove:hover {
-    color: var(--danger-text);
-    background: color-mix(in srgb, var(--danger) 12%, transparent);
-}
-.tile-remove:focus-visible {
+.tile:hover .tile-menu-btn,
+.tile:focus-within .tile-menu-btn,
+.tile-menu[open] .tile-menu-btn { opacity: 1; }
+.tile-menu-btn:hover { color: var(--text); background: var(--hover); }
+.tile-menu-btn:focus-visible {
     opacity: 1;
     outline: 2px solid var(--accent);
     outline-offset: 1px;
+}
+
+/* Tile footprints, Windows-Phone style: the tile decides how much room it
+   takes. Collapsed on narrow screens, where one column is the only sane
+   answer. */
+.grid .tile.size-wide  { grid-column: span 2; }
+.grid .tile.size-large { grid-column: span 2; grid-row: span 2; }
+@media (max-width: 768px) {
+    .grid .tile.size-wide,
+    .grid .tile.size-large { grid-column: auto; grid-row: auto; }
+}
+
+/* The tile that closes the grid — a slot, not an app. */
+.tile-add {
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    background: transparent;
+    border: 1px dashed var(--border-strong);
+    color: var(--text-muted);
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+.tile-add > sac-icon {
+    --icon-size: 32px;
+    margin-bottom: 0;
+    color: var(--text-muted);
+}
+.tile-add:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+.tile-add:hover > sac-icon { color: var(--accent); }
+
+/* Dialog bodies: settings and info. */
+.settings, .info { display: flex; flex-direction: column; gap: 0.5rem; }
+.settings label {
+    margin-top: 0.6rem;
+    margin-bottom: 0;
+}
+.settings label:first-child { margin-top: 0; }
+.settings .btn.danger { width: auto; align-self: flex-start; }
+.info h3 {
+    font-size: 0.95rem;
+    margin-top: 0.8rem;
+}
+.info h3:first-child { margin-top: 0; }
+.info p { margin: 0; }
+.hint {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    margin: 0;
 }
 
 /* sac.dialog.confirm sets its message with textContent, so the line breaks
