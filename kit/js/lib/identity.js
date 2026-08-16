@@ -17,11 +17,17 @@
  * backs this with a real account, `{ id, name, avatar }` and `onChange` still
  * describe it, and apps written today keep working.
  *
- * HOST side — the desktop owns the profile, because the profile is the
- * desktop's notion of you, not any single app's:
+ * HOST side — the host owns the profile, because the profile is the host's
+ * notion of you, not any single app's:
  *
  *   sac.identity.set({ name: "Ada", avatar: "ada.png" });   // settings UI
  *   sac.identity.clear();
+ *
+ * A host that has a REAL identity — an app with a backend, a session, an
+ * account — hands the source over instead, and keeps everything apps depend
+ * on: sac.identity.use({ get, onChange?, set?, clear? }). Omit set() and the
+ * identity is read-only, which is what an account should be. Same idea as
+ * sac.fs.backend: the kit owns the shape, the host owns the answer.
  *
  * APP side — read-only. An app that wants a name of its own asks in its own
  * UI and keeps it in its own context.fs; it does not get to rename you
@@ -56,9 +62,23 @@
     }
 
     let cache;                       // undefined = not read yet, null = nobody
+    let provider = null;             // a host with a real account system
     const listeners = new Set();
 
     function read() {
+        // A provider is the source of truth while it is installed: the kit
+        // keeps the app-facing shape and the fan-out, the host owns the answer.
+        if (provider) {
+            try {
+                const me = provider.get();
+                return me && typeof me.name === "string"
+                    ? { id: me.id || "u", name: me.name, avatar: me.avatar }
+                    : null;
+            } catch (err) {
+                console.error("[sac.identity] the provider's get() threw:", err);
+                return null;
+            }
+        }
         if (cache !== undefined) return cache;
         const raw = backend().get(KEY);
         if (raw == null) { cache = null; return cache; }
@@ -119,6 +139,16 @@
          * @param {{name: string, avatar?: string}|null} profile
          */
         set(profile) {
+            if (provider) {
+                if (typeof provider.set !== "function") {
+                    console.warn("[sac.identity] this host's identity is read-only " +
+                                 "(it comes from an account, not from a field)");
+                    return this.get();
+                }
+                provider.set(profile);
+                emit();
+                return this.get();
+            }
             if (!profile || !String(profile.name || "").trim()) return this.clear();
             const previous = read();
             const next = {
@@ -138,8 +168,14 @@
             return Object.assign({}, next);
         },
 
-        /** Back to nobody. The id is gone with it — this is "forget me". */
+        /** Back to nobody. The id is gone with it — this is "forget me". With a
+         *  provider installed this is the host's sign-out, if it offers one. */
         clear() {
+            if (provider) {
+                if (typeof provider.clear === "function") provider.clear();
+                emit();
+                return this.get();
+            }
             backend().del(KEY);
             cache = null;
             emit();
@@ -148,6 +184,40 @@
 
         /** cb(profile|null) on every change, including from another tab. */
         onChange: subscribe,
+
+        /**
+         * Hand the source over to a host that has a real one — an app with a
+         * backend, a session, an account. The kit keeps what apps depend on
+         * (the shape, forApp(), the fan-out); the host answers who is here:
+         *
+         *   sac.identity.use({
+         *       get()            { return session.user &&                    // may be null
+         *              { id: session.user.id, name: session.user.name, avatar: session.user.avatar }; },
+         *       onChange(cb)     { return session.subscribe(cb); },          // optional
+         *       clear()          { session.signOut(); },                     // optional
+         *       set(profile)     { … },                                      // optional; omit and
+         *   });                                                              // the identity is read-only
+         *
+         * get() is SYNCHRONOUS on purpose — apps call it while rendering. A
+         * host whose answer needs a round trip returns null until it knows and
+         * then announces: either through the onChange it provided, or by
+         * calling sac.identity.changed(). Apps paint "nobody" first and update,
+         * exactly as they already do for the theme.
+         *
+         * Passing null gives the local profile back.
+         */
+        use(impl) {
+            if (this._offProvider) { this._offProvider(); this._offProvider = null; }
+            provider = impl || null;
+            if (provider && typeof provider.onChange === "function") {
+                const off = provider.onChange(() => emit());
+                if (typeof off === "function") this._offProvider = off;
+            }
+            emit();
+        },
+
+        /** A host with a provider announcing that the answer changed. */
+        changed() { emit(); },
 
         /** The read-only view an app receives as context.identity. */
         forApp() {
