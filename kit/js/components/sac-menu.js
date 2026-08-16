@@ -11,8 +11,10 @@
  * Trigger and items both live in the light DOM (slotted) so apps can put any
  * markup inside them; the component only positions, styles and wires them.
  *
- * The panel is `position: fixed` and anchored to the trigger's viewport rect
- * on open, so it is never clipped by an `overflow: hidden` ancestor. It flips
+ * The panel is `position: fixed`, shown in the top layer (`popover`) and
+ * anchored to the trigger's viewport rect on open — so neither an
+ * `overflow: hidden` ancestor nor a transformed one (`.tile` is both) can clip
+ * or re-anchor it. It flips
  * above the trigger when there is no room below, is clamped 8px inside the
  * viewport, and re-anchors on scroll/resize while open.
  *
@@ -48,6 +50,7 @@ class SacMenu extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: "open" });
+        this._lowerTimer = null;
         this._onDocPointer = this._onDocPointer.bind(this);
         this._onDocKeydown = this._onDocKeydown.bind(this);
         this._onReposition = this._onReposition.bind(this);
@@ -60,10 +63,14 @@ class SacMenu extends HTMLElement {
         window.addEventListener("scroll", this._onReposition, true);
         window.addEventListener("resize", this._onReposition);
         this._syncTrigger();
-        if (this.hasAttribute("open")) this._position();
+        if (this.hasAttribute("open")) { this._raise(); this._position(); }
     }
 
     disconnectedCallback() {
+        if (this._lowerTimer != null) {
+            clearTimeout(this._lowerTimer);
+            this._lowerTimer = null;
+        }
         document.removeEventListener("pointerdown", this._onDocPointer, true);
         document.removeEventListener("keydown", this._onDocKeydown, true);
         window.removeEventListener("scroll", this._onReposition, true);
@@ -73,8 +80,13 @@ class SacMenu extends HTMLElement {
     attributeChangedCallback() {
         if (!this.shadowRoot.firstChild) return;   // pre-upgrade attribute
         this._syncTrigger();
-        if (this.hasAttribute("open")) this._position();
-        else this._clearHighlight();
+        if (this.hasAttribute("open")) {
+            this._raise();                         // top layer first: it must be
+            this._position();                      // measurable before anchoring
+        } else {
+            this._lower();
+            this._clearHighlight();
+        }
     }
 
     /* ---------------------------------------------------------------- API */
@@ -106,11 +118,25 @@ class SacMenu extends HTMLElement {
                     display: inline-flex;
                 }
                 /* The .floating-menu recipe, re-implemented in the shadow root
-                   (global classes do not pierce shadow boundaries). */
+                   (global classes do not pierce shadow boundaries).
+
+                   The popover attribute is load-bearing, not decoration: a
+                   fixed panel is only viewport-anchored while no ancestor
+                   establishes a containing block for it — and transform,
+                   will-change, filter and backdrop-filter all do. .tile sets
+                   three of them, so a menu inside a tile is positioned against
+                   the tile and then clipped away by its overflow: hidden —
+                   invisible, with nothing in the console. The top layer is
+                   outside that chain entirely.
+
+                   The author display: flex below beats the UA's
+                   [popover]:not(:popover-open) { display: none }, which is
+                   deliberate: the panel keeps its own opacity/visibility
+                   transition instead of snapping through display. */
                 .panel {
                     position: fixed;
-                    top: 0;
-                    left: 0;
+                    inset: auto;                   /* the UA pins popovers to all four sides… */
+                    margin: 0;                     /* …and centres them with auto margins */
                     z-index: 9999;                 /* same layer as sac-chip-input's dropdown */
                     min-width: 180px;
                     background: var(--glass-strong);
@@ -189,7 +215,7 @@ class SacMenu extends HTMLElement {
                 }
             </style>
             <span class="trigger"><slot name="trigger"></slot></span>
-            <div class="panel" role="menu"><slot></slot></div>
+            <div class="panel" role="menu" popover="manual"><slot></slot></div>
         `;
 
         this._triggerBox  = this.shadowRoot.querySelector(".trigger");
@@ -203,6 +229,36 @@ class SacMenu extends HTMLElement {
 
         // Item click — light DOM, so listen on the host and walk composedPath.
         this.addEventListener("click", (e) => this._onItemClick(e));
+    }
+
+    /* ------------------------------------------------------------ top layer */
+
+    /** Show the panel in the top layer, where no transformed or clipping
+     *  ancestor can reach it. Browsers without popover support keep the plain
+     *  fixed panel — correct everywhere except inside a transformed ancestor. */
+    _raise() {
+        if (this._lowerTimer != null) {
+            clearTimeout(this._lowerTimer);
+            this._lowerTimer = null;
+        }
+        const panel = this._panel;
+        if (!panel || typeof panel.showPopover !== "function") return;
+        if (panel.matches(":popover-open")) return;
+        try { panel.showPopover(); } catch (err) { /* already shown elsewhere */ }
+    }
+
+    /** Leave the top layer only after the close transition has run — dropping
+     *  out of it is instant, and would cut the fade. */
+    _lower() {
+        const panel = this._panel;
+        if (!panel || typeof panel.hidePopover !== "function") return;
+        if (this._lowerTimer != null) clearTimeout(this._lowerTimer);
+        this._lowerTimer = setTimeout(() => {
+            this._lowerTimer = null;
+            if (this.hasAttribute("open")) return;          // reopened meanwhile
+            if (!panel.matches(":popover-open")) return;
+            try { panel.hidePopover(); } catch (err) { /* already hidden */ }
+        }, 160);
     }
 
     /* ---------------------------------------------------------- positioning */

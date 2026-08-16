@@ -146,9 +146,66 @@
     margin: 0;
 }
 
+/* First-run offer: two apps, each with its origin in plain sight, because
+   that is the one fact that should never be behind a click. */
+.welcome { display: flex; flex-direction: column; gap: 1rem; }
+.welcome > p { margin: 0; }
+
+.picks { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+
+.pick {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: start;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--field);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-m);
+    cursor: pointer;
+    /* ui.css styles <label> as a form caption — uppercase, 0.7rem, tracked.
+       This label is a row of prose, so it takes the body voice back. */
+    text-transform: none;
+    letter-spacing: normal;
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: var(--text);
+    transition: border-color 0.15s var(--ease-smooth),
+                background 0.15s var(--ease-smooth);
+}
+.pick:hover { border-color: var(--border-strong); background: var(--hover); }
+.pick:has(input:checked) { border-color: var(--accent); background: var(--accent-tint); }
+.pick:has(input:disabled) { cursor: default; opacity: 0.65; }
+.pick:has(input:disabled):hover { border-color: var(--border); background: var(--field); }
+.pick:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.pick input { margin: 0.15rem 0 0; }
+.pick > sac-icon { --icon-size: 22px; color: var(--accent); margin-top: 0.05rem; }
+
+.pick-body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.pick-name { font-weight: 600; }
+.pick-blurb { color: var(--text-muted); font-size: 0.85rem; }
+.pick-origin {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow-wrap: anywhere;
+}
+.pick-state {
+    margin-top: 0.2rem;
+    color: var(--ok-text);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
 /* sac.dialog.confirm sets its message with textContent, so the line breaks
-   in it are real characters — let them render. */
+   in it are real characters — let them render. Authored bodies are the other
+   way round: their newlines are source indentation and must collapse. */
 sac-dialog p { white-space: pre-line; }
+sac-dialog .info p,
+sac-dialog .info li,
+sac-dialog .settings p,
+sac-dialog .welcome p { white-space: normal; }
 
 .empty {
     color: var(--text-muted);

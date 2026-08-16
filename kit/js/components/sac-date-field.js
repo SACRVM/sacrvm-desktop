@@ -79,6 +79,7 @@ class SacDateField extends HTMLElement {
         this._forwarding = false;  // guards the calendar → field → calendar echo
         this._popover = null;
         this._calendar = null;
+        this._lowerTimer = null;   // top-layer exit, delayed past the fade
 
         this._onDocPointer = this._onDocPointer.bind(this);
         this._onDocKeydown = this._onDocKeydown.bind(this);
@@ -99,6 +100,10 @@ class SacDateField extends HTMLElement {
 
     disconnectedCallback() {
         this._closePopover(false);            // never leave a popover anchored to nothing
+        if (this._lowerTimer != null) {
+            clearTimeout(this._lowerTimer);
+            this._lowerTimer = null;
+        }
         document.removeEventListener("pointerdown", this._onDocPointer, true);
         document.removeEventListener("keydown", this._onDocKeydown, true);
         window.removeEventListener("scroll", this._onReposition, true);
@@ -366,12 +371,15 @@ class SacDateField extends HTMLElement {
                 }
                 .well:disabled { cursor: not-allowed; }
 
-                /* Dropdown level — same layer and behavior family as sac-menu.
-                   position: fixed so an overflow: hidden sidebar cannot clip it. */
+                /* Dropdown level — same layer and behavior family as sac-menu:
+                   position: fixed, shown in the top layer (popover), so neither
+                   an overflow: hidden sidebar nor a transformed ancestor can
+                   clip or re-anchor it. */
                 .popover {
                     position: fixed;
-                    top: 0;
-                    left: 0;
+                    inset: auto;                   /* the UA pins popovers to all four sides… */
+                    margin: 0;                     /* …and centres them with auto margins */
+                    display: block;                /* beats the UA's popover display: none */
                     z-index: 9999;
                     padding: 10px;
                     background: var(--glass-strong);
@@ -505,6 +513,7 @@ class SacDateField extends HTMLElement {
 
         const pop = document.createElement("div");
         pop.className = "popover";
+        pop.setAttribute("popover", "manual");
         pop.setAttribute("role", "dialog");
         pop.setAttribute("aria-label", t("date-field.calendar", "Calendar"));
 
@@ -553,6 +562,7 @@ class SacDateField extends HTMLElement {
         this._seedValue();                        // seed: no event comes back
 
         this._open = true;
+        this._raise();                                        // top layer, then measure
         this._popover.classList.add("open");
         this._well.setAttribute("aria-expanded", "true");
         this._position();
@@ -573,8 +583,32 @@ class SacDateField extends HTMLElement {
         if (!this._open) return;
         this._open = false;
         this._popover.classList.remove("open");
+        this._lower();
         this._well.setAttribute("aria-expanded", "false");
         if (restoreFocus && document.activeElement === this) this._well.focus();
+    }
+
+    /* Top layer, exactly as sac-menu: a transformed or clipping ancestor would
+       otherwise catch this fixed panel. Leaving the layer waits for the fade. */
+    _raise() {
+        if (this._lowerTimer != null) {
+            clearTimeout(this._lowerTimer);
+            this._lowerTimer = null;
+        }
+        const p = this._popover;
+        if (!p || typeof p.showPopover !== "function" || p.matches(":popover-open")) return;
+        try { p.showPopover(); } catch (err) { /* already shown */ }
+    }
+
+    _lower() {
+        const p = this._popover;
+        if (!p || typeof p.hidePopover !== "function") return;
+        if (this._lowerTimer != null) clearTimeout(this._lowerTimer);
+        this._lowerTimer = setTimeout(() => {
+            this._lowerTimer = null;
+            if (this._open || !p.isConnected || !p.matches(":popover-open")) return;
+            try { p.hidePopover(); } catch (err) { /* already hidden */ }
+        }, 160);
     }
 
     _onReposition() {

@@ -7,12 +7,13 @@
  * it on hover / focus. The host is inline-block, so wrapping an existing
  * control does not change the layout around it.
  *
- * The bubble is `position: fixed` in the shadow root: it escapes every
- * `overflow: hidden` / `transform` ancestor, is positioned against the host's
- * viewport rect on each show, clamped to the viewport (8px margins) and
- * flipped to the opposite side when the preferred side has no room. (Caveat
- * of `fixed`: an ancestor with a transform/filter becomes the containing
- * block — inside a transformed panel the bubble anchors to that panel.)
+ * The bubble is `position: fixed` and shown in the top layer (`popover`), so
+ * it escapes every `overflow: hidden` ancestor AND every transformed one — a
+ * transform/filter/backdrop-filter ancestor would otherwise become its
+ * containing block and anchor the bubble to that panel instead of the
+ * viewport. It is positioned against the host's viewport rect on each show,
+ * clamped to the viewport (8px margins) and flipped to the opposite side when
+ * the preferred side has no room.
  *
  * Show / hide:
  *   - pointerenter  → show after 400ms (cancelled by pointerleave)
@@ -46,6 +47,7 @@ class SacTooltip extends HTMLElement {
         this.attachShadow({ mode: "open" });
         this._visible = false;
         this._timer = null;
+        this._lowerTimer = null;
         this._onPointerEnter = this._onPointerEnter.bind(this);
         this._onPointerLeave = this._onPointerLeave.bind(this);
         this._onFocusIn = this._onFocusIn.bind(this);
@@ -72,6 +74,10 @@ class SacTooltip extends HTMLElement {
         this._teardownGlobals();
         this._teardownPinned();
         this._clearTimer();
+        if (this._lowerTimer != null) {
+            clearTimeout(this._lowerTimer);
+            this._lowerTimer = null;
+        }
         this._visible = false;
     }
 
@@ -166,8 +172,12 @@ class SacTooltip extends HTMLElement {
 
                 .bubble {
                     position: fixed;
-                    top: 0;
-                    left: 0;
+                    inset: auto;                   /* the UA pins popovers to all four sides… */
+                    margin: 0;                     /* …and centres them with auto margins */
+                    /* Explicit, so it beats the UA's
+                       [popover]:not(:popover-open) { display: none }: the bubble
+                       must stay laid out while hidden (see _position). */
+                    display: block;
                     z-index: 25000;
                     box-sizing: border-box;
                     max-width: 280px;
@@ -221,7 +231,7 @@ class SacTooltip extends HTMLElement {
                 }
             </style>
             <slot></slot>
-            <div class="bubble" role="tooltip" part="bubble"></div>
+            <div class="bubble" role="tooltip" part="bubble" popover="manual"></div>
         `;
         this._bubble = this.shadowRoot.querySelector(".bubble");
     }
@@ -233,15 +243,45 @@ class SacTooltip extends HTMLElement {
         this._bubble.textContent = this._text();
         const shown = this._isShown() && !this.hasAttribute("disabled") && !!this._text();
         if (shown) {
+            this._raise();                  // top layer first — _position measures
             this._position();
             this._bubble.classList.add("shown");
         } else {
             this._bubble.classList.remove("shown");
+            this._lower();
         }
         // A forced-open bubble follows its trigger; a hover/focus one is
         // dismissed by scrolling (see _setupGlobals).
         if (shown && this.hasAttribute("open")) this._setupPinned();
         else this._teardownPinned();
+    }
+
+    /* Top layer. A fixed panel is only viewport-anchored while no ancestor
+       establishes a containing block for it — transform, will-change, filter
+       and backdrop-filter all do, and a .tile sets three of them. Shown as a
+       popover, the bubble is outside that chain (and outside any
+       overflow: hidden) entirely. Same treatment as sac-menu. */
+    _raise() {
+        if (this._lowerTimer != null) {
+            clearTimeout(this._lowerTimer);
+            this._lowerTimer = null;
+        }
+        const b = this._bubble;
+        if (!b || typeof b.showPopover !== "function" || b.matches(":popover-open")) return;
+        try { b.showPopover(); } catch (err) { /* already shown */ }
+    }
+
+    /** Leave the top layer after the fade, not during it. */
+    _lower() {
+        const b = this._bubble;
+        if (!b || typeof b.hidePopover !== "function") return;
+        if (this._lowerTimer != null) clearTimeout(this._lowerTimer);
+        this._lowerTimer = setTimeout(() => {
+            this._lowerTimer = null;
+            if (!b.isConnected || !b.matches(":popover-open")) return;
+            if (b.classList.contains("shown")) return;          // shown again meanwhile
+            try { b.hidePopover(); } catch (err) { /* already hidden */ }
+        }, 160);
     }
 
     /** Anchor the fixed bubble to the host's viewport rect: preferred side,

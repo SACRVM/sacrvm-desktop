@@ -151,8 +151,13 @@ class SacChipInput extends HTMLElement {
                 .dropdown {
                     /* position:fixed + JS-positioned coordinates so the
                        dropdown lives outside layout flow (no page scrollbar)
-                       and we can flip up/down based on viewport space. */
+                       and we can flip up/down based on viewport space. Shown
+                       in the top layer (popover), so a transformed or clipping
+                       ancestor cannot catch it — see sac-menu for the why. */
                     position: fixed;
+                    inset: auto;                   /* the UA pins popovers to all four sides… */
+                    margin: 0;                     /* …and centres them with auto margins */
+                    display: block;
                     min-width: 220px;
                     max-width: 360px;
                     max-height: 240px;
@@ -240,7 +245,7 @@ class SacChipInput extends HTMLElement {
                 </button>
                 <input class="entry" id="entry" autocomplete="off" hidden/>
             </div>
-            <div class="dropdown" id="dropdown" role="listbox"></div>
+            <div class="dropdown" id="dropdown" role="listbox" popover="manual"></div>
         `;
         this._chipsRoot = this.shadowRoot.getElementById("row");
         this._entry = this.shadowRoot.getElementById("entry");
@@ -300,15 +305,33 @@ class SacChipInput extends HTMLElement {
         this.setAttribute("open", "");
         this._refreshAddButton();
         this._renderDropdown();
+        this._raise();                   // top layer before measuring
         this._positionDropdown();
     }
 
     _closeDropdown() {
         this._open = false;
         this.removeAttribute("open");
+        this._lower();
         this._creating = null;
         this._entry.value = "";
         this._refreshAddButton();
+    }
+
+    /* Top layer: a transformed ancestor (a .tile, a card with backdrop-filter)
+       would otherwise become the containing block for this fixed panel, and its
+       overflow would clip it. There is no close transition here, so leaving the
+       layer can be immediate. */
+    _raise() {
+        const d = this._dropdown;
+        if (!d || typeof d.showPopover !== "function" || d.matches(":popover-open")) return;
+        try { d.showPopover(); } catch (err) { /* already shown */ }
+    }
+
+    _lower() {
+        const d = this._dropdown;
+        if (!d || typeof d.hidePopover !== "function" || !d.matches(":popover-open")) return;
+        try { d.hidePopover(); } catch (err) { /* already hidden */ }
     }
 
     /** Anchor the fixed-position dropdown to the input's viewport rect.

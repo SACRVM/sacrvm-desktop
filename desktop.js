@@ -159,6 +159,18 @@
 
     /* ------------------------------------------------------------ install */
 
+    /** Register + persist + repaint. The shared tail of every install path. */
+    function adopt(manifest) {
+        // How big a tile is, is the desktop owner's decision, not the author's —
+        // so an update (or a reinstall) inherits it instead of resetting it.
+        const previous = installed.find((m) => m.id === manifest.id);
+        if (previous && previous.tile && !manifest.tile) manifest.tile = previous.tile;
+        sac.apps.add(manifest);
+        installed = installed.filter((m) => m.id !== manifest.id).concat(manifest);
+        save(installed);
+        renderTiles();
+    }
+
     async function install(input) {
         let manifest;
         try {
@@ -187,10 +199,7 @@
         });
         if (answer !== "install") return null;
 
-        sac.apps.add(manifest);
-        installed = installed.filter((m) => m.id !== manifest.id).concat(manifest);
-        save(installed);
-        renderTiles();
+        adopt(manifest);
         if (typeof sac.toast === "function") {
             sac.toast(`${manifest.name} installed.`, { kind: "success" });
         }
@@ -263,6 +272,162 @@
     async function promptInstall() {
         const url = await promptUrl();
         if (url) await install(url);
+    }
+
+    /* ------------------------------------------------------------- welcome */
+
+    /* An empty desktop is honest but unhelpful: there is nothing to click and
+       nothing to learn from. So the first visit offers the two example apps —
+       as an offer, with the origins visible and both boxes unticked-able, not
+       as a fait accompli. Asked once; the answer is remembered either way. */
+
+    const WELCOME_KEY = "sacrvm.desktop.welcomed";
+
+    const EXAMPLES = [
+        {
+            id: "calculator",
+            url: "https://github.com/SACRVM/sacrvm-calculator",
+            name: "Calculator",
+            icon: "calculator",
+            blurb: "Four functions and a full keyboard, in a floating window.",
+        },
+        {
+            id: "notes",
+            url: "https://github.com/SACRVM/sacrvm-notes",
+            name: "Notes",
+            icon: "note",
+            blurb: "Takes the whole stage and puts its note list in the rail.",
+        },
+    ];
+
+    function welcomed() {
+        try { return localStorage.getItem(WELCOME_KEY) === "1"; }
+        catch (err) { return false; }
+    }
+
+    function markWelcomed() {
+        try { localStorage.setItem(WELCOME_KEY, "1"); }
+        catch (err) { /* asking again beats crashing */ }
+    }
+
+    /** "A and B", "A, B and C" — for a sentence, not a log line. */
+    function andList(names) {
+        if (names.length < 2) return names[0] || "";
+        return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+    }
+
+    async function installExamples(picks) {
+        if (!picks.length) return;
+        const done = [], failed = [];
+        for (const pick of picks) {
+            try {
+                adopt(await sac.apps.inspect(pick.url));
+                done.push(pick.name);
+            } catch (err) {
+                console.warn(`[desktop] could not install ${pick.name}:`, err);
+                failed.push(pick.name);
+            }
+        }
+        if (typeof sac.toast !== "function") return;
+        if (done.length) {
+            sac.toast(`${andList(done)} installed — open a tile to start.`, { kind: "success" });
+        }
+        if (failed.length) {
+            sac.toast(`Could not reach ${andList(failed)}. The desktop is fine; that origin was not.`,
+                      { kind: "error", duration: 8000 });
+        }
+    }
+
+    /**
+     * The first-run offer. Also reachable from the info dialog, which is why
+     * it re-reads what is installed every time it opens.
+     */
+    function openWelcome() {
+        const dlg = document.createElement("sac-dialog");
+        dlg.setAttribute("title", "New here?");
+
+        const wrap = document.createElement("div");
+        wrap.className = "welcome";
+        wrap.innerHTML = `
+            <p class="welcome-lead">This desktop ships empty on purpose — every
+               app on it comes from somebody's repository, and you decide which.
+               Shall I put two working examples on it, so there is something to
+               open?</p>
+
+            <ul class="picks">
+                ${EXAMPLES.map((ex, i) => `
+                    <li>
+                        <label class="pick">
+                            <input type="checkbox" data-pick="${i}" checked>
+                            <sac-icon name="${ex.icon}"></sac-icon>
+                            <span class="pick-body">
+                                <span class="pick-name">${ex.name}</span>
+                                <span class="pick-blurb">${ex.blurb}</span>
+                                <span class="pick-origin">${ex.url.replace(/^https:\/\//, "")}</span>
+                            </span>
+                        </label>
+                    </li>`).join("")}
+            </ul>
+
+            <p class="hint welcome-hint">They install the ordinary way: their
+               manifest is read from their own Pages, nothing is copied here, and
+               a tile's ⋯ menu removes them again.</p>
+        `;
+
+        if (!installed.length) {
+            wrap.querySelector(".welcome-hint").insertAdjacentText("beforeend",
+                " Skip this and the desktop stays empty — the tile at the end of " +
+                "the grid installs anything, any time.");
+        }
+
+        // Already installed → shown, ticked off, and left alone.
+        EXAMPLES.forEach((ex, i) => {
+            if (!installed.some((m) => m.id === ex.id)) return;
+            const box = wrap.querySelector(`[data-pick="${i}"]`);
+            box.checked = false;
+            box.disabled = true;
+            const row = box.closest(".pick");
+            row.classList.add("is-installed");
+            const note = document.createElement("span");
+            note.className = "pick-state";
+            note.textContent = "Installed";
+            row.querySelector(".pick-body").appendChild(note);
+        });
+
+        const pending = EXAMPLES.filter((ex, i) => !wrap.querySelector(`[data-pick="${i}"]`).disabled);
+        if (!pending.length) {
+            // Nothing left to offer: stop asking a question and answer one.
+            wrap.querySelector(".welcome-lead").textContent =
+                "Both examples are already on this desktop — open a tile to try them.";
+            wrap.querySelector(".welcome-hint").textContent =
+                "A tile's ⋯ menu removes one again, and the tile at the end of the " +
+                "grid installs any other app from its repository URL.";
+        } else if (pending.length < EXAMPLES.length) {
+            wrap.querySelector(".welcome-lead").textContent =
+                `${pending[0].name} is the example you don't have yet — shall I install it?`;
+        }
+        dlg.buttons = pending.length
+            ? [
+                { action: "skip",
+                  label: installed.length ? "Not now" : "Start empty",
+                  kind: "default" },
+                { action: "install", label: "Install selected", kind: "primary" },
+              ]
+            : [{ action: "ok", label: "Got it", kind: "primary" }];
+
+        dlg.appendChild(wrap);
+
+        dlg.addEventListener("sac-dialog:action", (e) => {
+            const picks = e.detail.action === "install"
+                ? EXAMPLES.filter((ex, i) => wrap.querySelector(`[data-pick="${i}"]`).checked)
+                : [];
+            markWelcomed();
+            // Let the dialog finish closing before tiles appear behind it.
+            setTimeout(() => { dlg.remove(); installExamples(picks); }, 140);
+        }, { once: true });
+
+        document.body.appendChild(dlg);
+        dlg.open();
     }
 
     /* ----------------------------------------------------------- settings */
@@ -426,11 +591,18 @@
                what you trust, the way you would a browser extension — the origin is
                on every tile for exactly that reason.</p>
 
-            <p class="hint">Want to write one?
-               <a href="https://sacrvm.github.io/sacrvm-appkit/kit/templates/">Start from a template</a>
-               — a dialog app or a fullscreen app, both a handful of lines.</p>
+            <p class="hint">Nothing to open yet?
+               <button type="button" class="link-btn examples-btn">Install the two example apps</button>
+               — or, to write your own,
+               <a href="https://sacrvm.github.io/sacrvm-appkit/kit/templates/">start from a template</a>:
+               a dialog app or a fullscreen app, both a handful of lines.</p>
         `;
         dlg.appendChild(wrap);
+
+        wrap.querySelector(".examples-btn").addEventListener("click", () => {
+            dlg.close(null);
+            setTimeout(openWelcome, 140);
+        });
 
         document.body.appendChild(dlg);
         infoDialog = dlg;
@@ -457,7 +629,16 @@
         const wanted = new URLSearchParams(location.search).get("install");
         if (wanted) {
             history.replaceState({}, document.title, location.pathname + location.hash);
+            markWelcomed();                 // arrived with an app: no tour needed
             install(wanted);
+            return;
+        }
+
+        // First visit, empty desktop, no app in the address: make the offer.
+        // A beat after paint, so the desktop is seen before it asks anything —
+        // and a timeout, not rAF, which never fires in a background tab.
+        if (!installed.length && !welcomed() && !location.hash) {
+            setTimeout(openWelcome, 500);
         }
     }
 
