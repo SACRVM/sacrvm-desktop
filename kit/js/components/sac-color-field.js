@@ -289,11 +289,14 @@ class SacColorField extends HTMLElement {
                     gap: 8px;
                 }
 
+                /* 32px is the kit's control-row height (the .toolbar measure;
+                   sac-stepper lands on it too) — a color and a quantity on
+                   one line sit flush. */
                 .well {
                     position: relative;
                     flex: none;
-                    width: 28px;
-                    height: 28px;
+                    width: 32px;
+                    height: 32px;
                     padding: 0;
                     border: 1px solid var(--border-strong);
                     border-radius: var(--radius-m);
@@ -331,6 +334,8 @@ class SacColorField extends HTMLElement {
                     flex: 1 1 auto;
                     min-width: 0;
                     width: 11ch;
+                    height: 32px;              /* control-row height, see .well */
+                    box-sizing: border-box;
                     padding: 0.35rem 0.5rem;
                     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
                     font-size: 0.78rem;

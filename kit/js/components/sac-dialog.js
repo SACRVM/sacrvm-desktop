@@ -141,6 +141,15 @@ class SacDialog extends HTMLElement {
                     position: relative;
                     width: 420px;
                     max-width: calc(100vw - 32px);
+                    /* A content-heavy dialog (an About panel, an explainer)
+                       must never outgrow the viewport — centered, both ends
+                       would be clipped with no way to reach them. The panel
+                       caps out and the BODY scrolls; title and actions stay.
+                       dvh, not vh: mobile URL bars shrink the visual
+                       viewport under 100vh. */
+                    max-height: calc(100dvh - 32px);
+                    display: flex;
+                    flex-direction: column;
                     background: color-mix(in srgb, var(--surface) 75%, transparent);
                     backdrop-filter: blur(20px) saturate(180%);
                     -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -156,6 +165,7 @@ class SacDialog extends HTMLElement {
                 }
 
                 .title {
+                    flex: none;
                     font-family: 'Outfit', sans-serif;
                     font-weight: 700;
                     font-size: 1.05rem;
@@ -165,15 +175,29 @@ class SacDialog extends HTMLElement {
                 }
 
                 .body {
+                    flex: 1 1 auto;
+                    min-height: 0;
+                    overflow-y: auto;
                     padding: 8px 20px 20px;
                     font-size: 0.9rem;
                     line-height: 1.5;
                     color: var(--text-muted);
+                    /* Scrollbar theme — duplicated because the global rule
+                       in ui.css doesn't pierce Shadow DOM. */
+                    scrollbar-width: thin;
+                    scrollbar-color: var(--scrollbar-thumb) transparent;
+                }
+                .body::-webkit-scrollbar { width: 6px; }
+                .body::-webkit-scrollbar-track { background: transparent; }
+                .body::-webkit-scrollbar-thumb {
+                    background: var(--scrollbar-thumb);
+                    border-radius: var(--radius-s);
                 }
                 .body ::slotted(p) { margin: 0; }
                 .body ::slotted(p + p) { margin-top: 8px; }
 
                 .actions {
+                    flex: none;
                     display: flex;
                     justify-content: flex-end;
                     gap: 8px;

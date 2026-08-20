@@ -501,6 +501,9 @@ kbd {
     opacity: 0.3;
     cursor: not-allowed;
 }
+/* [hidden] needs saying out loud here too: .btn's display:flex beats the
+   UA's hidden rule (the same trap .sac-app-view guards against). */
+.btn[hidden] { display: none; }
 
 /* Toolbar recipe — for nav [slot="toolbar"] content and any button strip. */
 .toolbar {

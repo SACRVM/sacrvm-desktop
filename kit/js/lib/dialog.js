@@ -1,8 +1,8 @@
 /**
- * sac.dialog — promise-based confirm dialog helper.
+ * sac.dialog — promise-based dialog helpers.
  *
- * Thin wrapper around <sac-dialog>. Constructs the element, waits for the
- * user's response, removes the element, resolves with the chosen action.
+ * Thin wrappers around <sac-dialog>. Construct the element, wait for the
+ * user's response, remove the element, resolve with the chosen action.
  *
  *   const answer = await sac.dialog.confirm({
  *       title:   "Delete this item?",
@@ -13,9 +13,19 @@
  *       ],
  *   });
  *
- * Resolves with the clicked button's `action` string, or `null` if the dialog
- * was dismissed via Escape / backdrop / programmatic close. Callers treat
- * `null` the same as "cancel."
+ *   await sac.dialog.info({
+ *       title:   "About",
+ *       message: ["First paragraph.", "Second paragraph."],   // or one string
+ *       label:   "Got it",                                    // default "OK"
+ *   });
+ *
+ * `message` is one string or an array of strings — each becomes its own
+ * paragraph, always via textContent (callers may pass user-sourced text).
+ *
+ * confirm() resolves with the clicked button's `action` string, or `null` if
+ * the dialog was dismissed via Escape / backdrop / programmatic close.
+ * Callers treat `null` the same as "cancel." info() is the one-button case —
+ * announce, not ask — so its resolution carries no information.
  */
 (function () {
     if (!window.sac) return;
@@ -29,10 +39,12 @@
 
                 if (message) {
                     // textContent — never innerHTML. Callers may pass
-                    // user-sourced strings.
-                    const p = document.createElement("p");
-                    p.textContent = message;
-                    dlg.appendChild(p);
+                    // user-sourced strings. An array is one <p> per entry.
+                    for (const part of Array.isArray(message) ? message : [message]) {
+                        const p = document.createElement("p");
+                        p.textContent = part;
+                        dlg.appendChild(p);
+                    }
                 }
 
                 dlg.addEventListener("sac-dialog:action", (e) => {
@@ -49,6 +61,19 @@
                 // requestAnimationFrame: a background tab paints no frames,
                 // and a dialog that never opens would hang its promise.
                 setTimeout(() => dlg.open(), 0);
+            });
+        },
+
+        /**
+         * The one-button modal: an About panel, a licence notice, a "what
+         * happened" explainer. Announce, not ask — so no action plumbing,
+         * just "read, dismiss".
+         */
+        info({ title, message, label }) {
+            return this.confirm({
+                title,
+                message,
+                buttons: [{ action: "ok", label: label || "OK", kind: "primary" }],
             });
         },
     };

@@ -23,15 +23,21 @@
  *              `value` when absent, so a swatch is never nameless.
  *   count    — small corner pill (e.g. "3 layers use this color"). It is the
  *              ATTRIBUTE'S PRESENCE that shows the pill — count="0" still
- *              renders "0"; omit the attribute entirely for no pill.
+ *              renders "0"; omit the attribute entirely for no pill. A count,
+ *              nothing else: naming a cell with it is misuse — that is what
+ *              `caption` is for.
+ *   caption  — quiet label under the cell (a ramp step "500", a legend
+ *              entry, a scale mark). Muted text that is part of the swatch,
+ *              not a badge on top of it. When no `label` is set, the caption
+ *              joins the accessible name ("500 · #64748b").
  *   selected — boolean, reflected. Draws a 2px accent OUTLINE (2px offset) —
  *              a focus-ring-style outline, not a border, per kit rule. Set
  *              by the grid in selectable mode, or directly by an app using
  *              a swatch outside a grid.
  *   disabled — boolean, reflected. Unclickable, unfocusable, skipped by the
  *              grid's keyboard navigation and excluded from roving tabindex.
- * <sac-swatch> properties: value/label/count (string get/set; "" clears
- *   label/count), selected/disabled (boolean get/set).
+ * <sac-swatch> properties: value/label/count/caption (string get/set; ""
+ *   clears label/count/caption), selected/disabled (boolean get/set).
  * <sac-swatch> method: focus() — forwards to the shadow-internal <button>
  *   (the host itself is not focusable, same convention as <sac-tab>).
  *
@@ -45,7 +51,7 @@
  *                the grid's role to listbox/option (plain "group" otherwise).
  * <sac-swatch-grid> property:
  *   colors — get/set. The setter accepts an array of
- *            { value, label?, count?, selected?, disabled? } and REBUILDS the light-DOM
+ *            { value, label?, count?, caption?, selected?, disabled? } and REBUILDS the light-DOM
  *            <sac-swatch> children from scratch — the ONE sanctioned bulk
  *            rebuild in this file, meant for JS-driven data (a palette
  *            loaded from a file, a computed ramp). The getter reads the
@@ -86,7 +92,7 @@
        <sac-swatch>
        ==================================================================== */
     class SacSwatch extends HTMLElement {
-        static get observedAttributes() { return ["value", "label", "count", "selected", "disabled"]; }
+        static get observedAttributes() { return ["value", "label", "count", "caption", "selected", "disabled"]; }
 
         constructor() {
             super();
@@ -122,6 +128,12 @@
         set count(v) {
             if (v == null || v === "") this.removeAttribute("count");
             else this.setAttribute("count", String(v));
+        }
+
+        get caption() { return this.getAttribute("caption"); }
+        set caption(v) {
+            if (v == null || v === "") this.removeAttribute("caption");
+            else this.setAttribute("caption", String(v));
         }
 
         get selected() { return this.hasAttribute("selected"); }
@@ -254,6 +266,24 @@
                     }
                     .count[hidden] { display: none; }
 
+                    /* Scale caption — part of the swatch, not a badge on it:
+                       quiet muted text under the cell (a ramp step "500", a
+                       legend entry). Ellipsized, so a long caption never
+                       widens its grid column. */
+                    .caption {
+                        display: block;
+                        margin-top: 3px;
+                        font-size: 0.65rem;
+                        font-weight: 500;
+                        color: var(--text-muted);
+                        text-align: center;
+                        font-variant-numeric: tabular-nums;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    .caption[hidden] { display: none; }
+
                     @media (prefers-reduced-motion: reduce) {
                         button { transition: none; }
                         button:hover:not(:disabled) { transform: none; }
@@ -261,9 +291,11 @@
                 </style>
                 <button type="button"></button>
                 <span class="count" aria-hidden="true" hidden></span>
+                <span class="caption" aria-hidden="true" hidden></span>
             `;
-            this._btn     = this.shadowRoot.querySelector("button");
-            this._countEl = this.shadowRoot.querySelector(".count");
+            this._btn       = this.shadowRoot.querySelector("button");
+            this._countEl   = this.shadowRoot.querySelector(".count");
+            this._captionEl = this.shadowRoot.querySelector(".caption");
         }
 
         _refresh() {
@@ -278,8 +310,17 @@
                the base rule's transparent). */
             this._btn.style.backgroundColor = isTransparent ? "" : value;
 
+            const caption = this.caption;
+            const hasCaption = caption != null && caption !== "";
+            this._captionEl.textContent = hasCaption ? caption : "";
+            this._captionEl.hidden = !hasCaption;
+
+            // The caption is aria-hidden (like the pill), so it folds into
+            // the button's name instead: "500 · #64748b". An explicit label
+            // still wins outright.
             const label = this.label;
-            const accessibleName = label || value;
+            const accessibleName =
+                label || (hasCaption ? `${caption} · ${value}` : value);
             if (accessibleName) {
                 this._btn.setAttribute("aria-label", accessibleName);
                 this._btn.title = accessibleName;
@@ -360,6 +401,7 @@
                 const item = { value: s.getAttribute("value") || "" };
                 if (s.hasAttribute("label")) item.label = s.getAttribute("label");
                 if (s.hasAttribute("count")) item.count = s.getAttribute("count");
+                if (s.hasAttribute("caption")) item.caption = s.getAttribute("caption");
                 if (s.hasAttribute("selected")) item.selected = true;
                 if (s.hasAttribute("disabled")) item.disabled = true;
                 return item;
@@ -373,6 +415,7 @@
                 el.setAttribute("value", item && item.value != null ? String(item.value) : "");
                 if (item && item.label != null && item.label !== "") el.setAttribute("label", String(item.label));
                 if (item && item.count != null && item.count !== "") el.setAttribute("count", String(item.count));
+                if (item && item.caption != null && item.caption !== "") el.setAttribute("caption", String(item.caption));
                 if (item && item.selected) el.setAttribute("selected", "");
                 if (item && item.disabled) el.setAttribute("disabled", "");
                 frag.appendChild(el);

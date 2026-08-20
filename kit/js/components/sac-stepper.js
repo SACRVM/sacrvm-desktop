@@ -191,7 +191,14 @@ class SacStepper extends HTMLElement {
                     opacity: 0.4;
                     pointer-events: none;
                 }
+                /* 26px buttons + 2px padding + 1px border = 32px — the kit's
+                   control-row height (the .toolbar measure; sac-color-field
+                   lands on it too). Explicit, not content-derived: at
+                   fractional page zoom an auto height rounds to device
+                   pixels and drifts off the shared row. */
                 .stepper {
+                    box-sizing: border-box;
+                    height: 32px;
                     display: inline-flex;
                     align-items: center;
                     gap: 2px;
