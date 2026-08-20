@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How this works — SACRVM DESKTOP</title>
+    <meta name="description" content="What installing means on SACRVM DESKTOP, where apps and their data live, and what leaves this browser: nothing.">
+
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/><polyline points='3.27 6.96 12 12.01 20.73 6.96'/><line x1='12' y1='22.08' x2='12' y2='12'/></svg>">
+
+    <link rel="stylesheet" href="kit/css/ui.css">
+    <link rel="stylesheet" href="desktop.css">
+
+    <!-- The kit renders the ribbon and the footer here too; the desktop's own
+         script stays home — this page is prose, not shell. -->
+    <script defer src="kit/js/all.js"></script>
+</head>
+<body>
+    <sac-nav brand="SACRVM" brand-icon="cube" brand-href="./" app-name="DESKTOP"></sac-nav>
+
+    <div class="hub-container">
+        <header>
+            <h1>How this works</h1>
+            <p class="intro-text">The long version. The short one sits behind
+               the (i) in the ribbon — <a href="./">back to the desktop</a>.</p>
+        </header>
+
+        <main class="doc">
+            <section>
+                <h2>Whose desktop is this?</h2>
+                <p><strong>Yours, and only in this browser.</strong> Your installed
+                   apps and settings live in this browser's storage, on this device.
+                   Another visitor to this address sees an empty desktop; your phone
+                   sees a different one. There is no server and no account — nothing
+                   you do here leaves this device unless an app you installed sends
+                   it somewhere.</p>
+            </section>
+
+            <section>
+                <h2>Where do the apps live?</h2>
+                <p>At their own origin — <code>owner.github.io/repo/</code> — never
+                   here. Installing stores the address and the manifest that was read
+                   from it, so the author's next release is simply there.
+                   <strong>Removing an app forgets that address in this
+                   browser.</strong> Nothing is deleted at the origin, and nothing
+                   on GitHub.</p>
+            </section>
+
+            <section>
+                <h2>And what you write in them?</h2>
+                <p>Also here, in this browser — each app gets its own drawer, and it
+                   can only reach its own. Removing an app <strong>keeps</strong> what
+                   it stored, so reinstalling brings your work back; the remove dialog
+                   offers to delete it too, and says how much there is. Settings lists
+                   the drawers of apps that are gone, in case you want them cleaned
+                   up.</p>
+            </section>
+
+            <section>
+                <h2>Which apps can go on it?</h2>
+                <p><strong>SACRVM APPKIT apps — and only those.</strong> Concretely: a
+                   repository whose GitHub Pages serves an <code>app.json</code> in its
+                   root, next to the one custom element that app is. That manifest is
+                   the whole reason a desktop can install something it has never seen.</p>
+                <p>Any other repository — however good the project — has nothing here
+                   to read, and pasting it will politely fail. This is not a store with
+                   a review queue: there is no approval, no account and no list. If it
+                   has a manifest, it installs; if it has none, there is nothing to
+                   install.</p>
+            </section>
+
+            <section>
+                <h2>What installing does</h2>
+                <ol class="steps">
+                    <li>You paste <code>github.com/owner/repo</code>.</li>
+                    <li>The desktop reads <code>owner.github.io/repo/app.json</code> —
+                        a fetch, not an execution.</li>
+                    <li>It shows you what the manifest says, and where it came from.</li>
+                    <li>You confirm. Only then is the app's script ever loaded, and only
+                        when you first open the app.</li>
+                </ol>
+                <p><code>?install=&lt;url&gt;</code> in the desktop's address does the
+                   same by link, which is how you hand somebody an app — the manifest
+                   is still shown, and it still waits for their yes.</p>
+                <p class="note">An installed app runs its own code in this page. Install
+                   what you trust, the way you would a browser extension — the origin is
+                   on every tile for exactly that reason.</p>
+            </section>
+
+            <section>
+                <h2>Nothing to open yet?</h2>
+                <p>Two example apps show the two kinds of app there are. Each link runs
+                   the ordinary install flow — manifest and origin shown, your
+                   confirmation asked:</p>
+                <ul class="steps">
+                    <li><a href="./?install=https://github.com/SACRVM/sacrvm-calculator">Install
+                        Calculator</a> — four functions and a full keyboard, in a
+                        floating window.</li>
+                    <li><a href="./?install=https://github.com/SACRVM/sacrvm-notes">Install
+                        Notes</a> — takes the whole stage and puts its note list in
+                        the rail.</li>
+                </ul>
+                <p>Or write your own:
+                   <a href="https://sacrvm.github.io/sacrvm-appkit/#/build" target="_blank" rel="noopener">how
+                   an app is built</a>, end to end — a manifest, one custom element,
+                   and a <a href="https://github.com/SACRVM/sacrvm-app-template" target="_blank" rel="noopener">template
+                   repository</a> to start from (<em>Use this template</em>).</p>
+            </section>
+        </main>
+    </div>
+
+    <sac-footer brand="SACRVM DESKTOP"
+                link-href="https://github.com/SACRVM/sacrvm-desktop" link-label="GITHUB"></sac-footer>
+</body>
+</html>

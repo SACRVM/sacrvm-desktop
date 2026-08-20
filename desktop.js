@@ -405,8 +405,8 @@
     }
 
     /**
-     * The first-run offer. Also reachable from the info dialog, which is why
-     * it re-reads what is installed every time it opens.
+     * The first-run offer. It re-reads what is installed every time it
+     * opens, so it stays truthful wherever it is opened from.
      */
     function openWelcome() {
         const dlg = document.createElement("sac-dialog");
@@ -740,78 +740,36 @@
 
     /* --------------------------------------------------------------- info */
 
-    let infoDialog = null;
+    /* Three short paragraphs for the three questions people actually ask.
+       Everything beyond them lives on how.html — a page can scroll, a modal
+       should not have to. */
 
-    function openInfo() {
-        if (infoDialog) { infoDialog.open(); return; }
+    async function openInfo() {
+        const answer = await sac.dialog.confirm({
+            title: "How this works",
+            message: [
+                "This desktop is yours, and only in this browser. Apps and " +
+                "settings live in this browser's storage — there is no " +
+                "server and no account. Another visitor to this address " +
+                "sees an empty desktop.",
 
-        const dlg = document.createElement("sac-dialog");
-        dlg.setAttribute("title", "How this works");
-        dlg.buttons = [{ action: "ok", label: "Got it", kind: "primary" }];
+                "Installing is remembering a URL. The desktop reads the " +
+                "app's manifest from the address you paste — a fetch, not " +
+                "an execution — and shows what it says before you confirm. " +
+                "The app's code loads only when you first open it, and " +
+                "removing an app forgets the address again.",
 
-        const wrap = document.createElement("div");
-        wrap.className = "info";
-        wrap.innerHTML = `
-            <h3>Whose desktop is this?</h3>
-            <p><strong>Yours, and only in this browser.</strong> Your installed apps and
-               settings live in this browser's storage, on this device. Another visitor
-               to this address sees an empty desktop; your phone sees a different one.
-               There is no server and no account.</p>
-
-            <h3>Where do the apps live?</h3>
-            <p>At their own origin — <code>owner.github.io/repo/</code> — never here.
-               Installing stores the address and the manifest that was read from it,
-               so the author's next release is simply there.
-               <strong>Removing an app forgets that address in this browser.</strong>
-               Nothing is deleted at the origin, and nothing on GitHub.</p>
-
-            <h3>And what you write in them?</h3>
-            <p>Also here, in this browser — each app gets its own drawer, and it can
-               only reach its own. Removing an app <strong>keeps</strong> what it stored,
-               so reinstalling brings your work back; the remove dialog offers to delete
-               it too, and says how much there is.</p>
-
-            <h3>Which apps can go on it?</h3>
-            <p><strong>SACRVM APPKIT apps — and only those.</strong> Concretely: a
-               repository whose GitHub Pages serves an <code>app.json</code> in its
-               root, next to the one custom element that app is. That manifest is
-               the whole reason a desktop can install something it has never seen.</p>
-            <p>Any other repository — however good the project — has nothing here
-               to read, and pasting it will politely fail. This is not a store with
-               a review queue: there is no approval, no account and no list. If it
-               has a manifest, it installs; if it has none, there is nothing to
-               install.</p>
-
-            <h3>What installing does</h3>
-            <ol class="steps">
-                <li>You paste <code>github.com/owner/repo</code>.</li>
-                <li>The desktop reads <code>owner.github.io/repo/app.json</code> —
-                    a fetch, not an execution.</li>
-                <li>It shows you what the manifest says, and where it came from.</li>
-                <li>You confirm. Only then is the app's script ever loaded, and only
-                    when you first open the app.</li>
-            </ol>
-            <p class="note">An installed app runs its own code in this page. Install
-               what you trust, the way you would a browser extension — the origin is
-               on every tile for exactly that reason.</p>
-
-            <p class="hint">Nothing to open yet?
-               <button type="button" class="link-btn examples-btn">Install the two example apps</button>
-               — or, to write your own,
-               <a href="https://sacrvm.github.io/sacrvm-appkit/#/build" target="_blank" rel="noopener">read
-               how an app is built</a>: a manifest, one custom element, and a
-               template repository to start from.</p>
-        `;
-        dlg.appendChild(wrap);
-
-        wrap.querySelector(".examples-btn").addEventListener("click", () => {
-            dlg.close(null);
-            setTimeout(openWelcome, 140);
+                "An installed app runs its own code in this page. Install " +
+                "what you trust, the way you would a browser extension — " +
+                "the origin is on every tile for exactly that reason.",
+            ],
+            buttons: [
+                { action: "more", label: "The long version", kind: "default" },
+                { action: "ok", label: "Got it", kind: "primary" },
+            ],
         });
-
-        document.body.appendChild(dlg);
-        infoDialog = dlg;
-        dlg.open();
+        // A new tab, so whatever is on stage stays on stage.
+        if (answer === "more") window.open("how.html", "_blank", "noopener");
     }
 
     /* --------------------------------------------------------------- boot */

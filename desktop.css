@@ -48,6 +48,17 @@
     white-space: nowrap;
 }
 
+/* how.html — the long version: one measured column of prose. */
+.doc {
+    max-width: 72ch;
+    padding-bottom: 3rem;
+}
+.doc section { margin-bottom: 2.25rem; }
+.doc section:last-child { margin-bottom: 0; }
+.doc h2 { font-size: 1.3rem; margin-bottom: 0.6rem; }
+.doc p { margin: 0 0 0.8rem; }
+.doc p:last-child { margin-bottom: 0; }
+
 /* The origin line under every tile — small, dim, and never absent. */
 .tile-meta {
     color: var(--text-dim);
@@ -136,8 +147,8 @@
 }
 .who-btn[hidden] { display: none; }
 
-/* Dialog bodies: settings and info. */
-.settings, .info { display: flex; flex-direction: column; gap: 0.5rem; }
+/* Dialog bodies: settings. */
+.settings { display: flex; flex-direction: column; gap: 0.5rem; }
 .settings label {
     margin-top: 0.6rem;
     margin-bottom: 0;
@@ -151,12 +162,6 @@
 }
 .settings .btn.danger { width: auto; align-self: flex-start; }
 .settings .btn.danger[hidden] { display: none; }
-.info h3 {
-    font-size: 0.95rem;
-    margin-top: 0.8rem;
-}
-.info h3:first-child { margin-top: 0; }
-.info p { margin: 0; }
 .hint {
     color: var(--text-dim);
     font-size: 0.85rem;
@@ -219,27 +224,19 @@
    in it are real characters — let them render. Authored bodies are the other
    way round: their newlines are source indentation and must collapse. */
 sac-dialog p { white-space: pre-line; }
-sac-dialog .info p,
-sac-dialog .info li,
 sac-dialog .settings p,
 sac-dialog .welcome p { white-space: normal; }
+/* The kit means to put 8px between slotted paragraphs, but its
+   ::slotted(p + p) is invalid CSS (combinators cannot enter ::slotted) and
+   the browser drops the rule. Same value from here until the kit fixes it —
+   document styles win over ::slotted, so this stays correct afterwards. */
+sac-dialog p + p { margin-top: 8px; }
 
 .empty {
     color: var(--text-muted);
     margin: 1.5rem 0 0;
 }
 .empty[hidden] { display: none; }
-
-/* A button that reads as a link, because it acts like one. */
-.link-btn {
-    padding: 0;
-    border: none;
-    background: none;
-    color: var(--accent-text);
-    font: inherit;
-    cursor: pointer;
-}
-.link-btn:hover { text-decoration: underline; }
 
 @media (prefers-reduced-motion: reduce) {
     .tile-remove { transition: none; }
