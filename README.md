@@ -57,9 +57,10 @@ grant neither, which is why apps check before using them.
   read-only for apps. **Not authentication**: nothing is verified, and nothing
   leaves this device unless an app you installed sends it.
 
-The desktop also injects `context.host` — its name and address — which a view
-app renders in its own ribbon as the way back. Apps draw their whole chrome
-themselves; the desktop never lends them its hull.
+The desktop also injects `context.host` — the way back, the installed app
+list (a host group in the app's burger panel), and the home ribbon's controls
+(the right end of the app's ribbon). Apps draw their whole chrome themselves
+and render that package in it; the desktop never lends them its hull.
 
 ## Known gaps
 

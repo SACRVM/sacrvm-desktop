@@ -185,6 +185,7 @@
         installed = installed.filter((m) => m.id !== manifest.id).concat(manifest);
         save(installed);
         renderTiles();
+        declareHost();
     }
 
     async function install(input) {
@@ -281,6 +282,7 @@
         installed = installed.filter((m) => m.id !== manifest.id);
         save(installed);
         renderTiles();
+        declareHost();
         if (typeof sac.toast === "function" && answer === "purge") {
             sac.toast(`${manifest.name} and its data are gone.`, { kind: "info" });
         }
@@ -663,6 +665,7 @@
             installed = [];
             save(installed);
             renderTiles();
+            declareHost();
         });
 
         /* Data an app left behind. Removing an app keeps its work on purpose,
@@ -772,6 +775,36 @@
         if (answer === "more") window.open("how.html", "_blank", "noopener");
     }
 
+    /* --------------------------------------------------------------- host */
+
+    /* What the desktop injects into every app's own chrome (context.host):
+       the way home, the app list for the burger panel, and the home
+       ribbon's controls. Data, not a subscription — so it is declared
+       again whenever an input changes (install, remove, identity). An app
+       already on stage keeps the snapshot it mounted with; the next one
+       opened sees the new package. */
+
+    function hostPackage() {
+        const me = window.sac.identity ? sac.identity.get() : null;
+        return {
+            name: "SACRVM DESKTOP", icon: "cube", href: "#/",
+            // The app list, the way the home grid has it: view apps are
+            // addresses, and the router already knows them all.
+            nav: sac.router.routes()
+                .filter((r) => r.hash !== "#/")
+                .map((r) => ({ label: r.label, href: r.hash, icon: r.icon })),
+            // The home ribbon's buttons, carried into every app — and the
+            // badge, once somebody said who they are.
+            toolbar: [
+                { icon: "info", title: "How this works", onClick: openInfo },
+                me ? { icon: "user", label: me.name, title: `You: ${me.name}`, onClick: openSettings }
+                   : { icon: "settings", title: "Settings", onClick: openSettings },
+            ],
+        };
+    }
+
+    function declareHost() { sac.apps.init({ host: hostPackage() }); }
+
     /* --------------------------------------------------------------- boot */
 
     function boot() {
@@ -806,10 +839,10 @@
         sac.apps.init({
             viewHost: "#app-stage",
             home: "#app-home",
-            // Injected into every app's own chrome as context.host: the
-            // way back, rendered by the app in its own ribbon.
-            host: { name: "SACRVM DESKTOP", icon: "cube", href: "#/" },
+            host: hostPackage(),
         });
+        // Identity is part of the package (the badge in the toolbar).
+        if (window.sac.identity) sac.identity.onChange(declareHost);
 
         // ?install=<url> installs by link — how you hand somebody an app.
         const wanted = new URLSearchParams(location.search).get("install");

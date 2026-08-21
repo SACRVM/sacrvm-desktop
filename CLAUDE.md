@@ -4,8 +4,8 @@ The example desktop for [SACRVM APPKIT](https://github.com/SACRVM/sacrvm-appkit)
 live at [desktop.sacrvm.dev](https://desktop.sacrvm.dev/). It is a host, not an
 app: it owns its home screen and the bare stage, and everything on it comes from
 somebody else's repository. Every app draws its own chrome; the desktop injects
-`context.host` — the way back — and never lends an app its hull. Read
-`README.md` first.
+`context.host` — the way back, the app list, the home ribbon's controls — and
+never lends an app its hull. Read `README.md` first.
 
 **Installing is remembering a URL.** Paste `github.com/owner/repo`, the desktop
 reads `owner.github.io/repo/app.json` — a fetch, never an execution — shows what
