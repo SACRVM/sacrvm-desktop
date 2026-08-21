@@ -47,8 +47,9 @@
  *             when you switch away, so state survives; mount() runs once.
  *             A view is a COMPLETE app: it draws its own chrome — nav,
  *             toolbar, rail — in its own markup. The host injects context
- *             into it (context.host: the jump-home address it renders in
- *             its own nav), never the other way around.
+ *             into it (context.host: jump-home, the suite's navigation,
+ *             the host's toolbar controls — all rendered by the app's own
+ *             nav), never the other way around.
  *   "page"    its own document. Only for apps that must also stand alone.
  *
  * Shell contract for views (see kit/templates/shell.html):
@@ -60,8 +61,14 @@
  *              the kit's SPA convention)
  *   home     — element shown while no view is active, i.e. at "#/" (optional)
  *   host     — what this host injects into every view's own chrome; apps
- *              receive it as context.host and render the jump themselves
- *              (optional — without it apps show no host presence)
+ *              receive it as context.host and assign it to their own nav
+ *              (nav.host = context.host). Shape: { name, icon, href,
+ *              nav: [{label, href, icon?}],  → the suite's cross-app
+ *              navigation, shown as a host group in the app's burger panel
+ *              toolbar: [{icon, label?, title?, href?|onClick?}] } → host
+ *              controls at the right end of the app's ribbon (a signed-in
+ *              user, a suite-wide action). Optional — without it apps show
+ *              no host presence.
  *
  * API:
  *   register(manifest)   upsert by id (re-register replaces; first
@@ -116,9 +123,10 @@
  *                                  // changes from outside — a rail link, the back
  *                                  // button, a pasted URL. Returns an unsubscribe.
  *       host: {                    // views only, null standalone: what the HOST
- *           name, icon, href       // injects into the app's own chrome — the
- *       },                         // jump-home address the app renders in its
- *                                  // own <sac-nav> (host-label/-href/-icon)
+ *           name, icon, href,      // injects into the app's own chrome. The
+ *           nav, toolbar           // app assigns it to its own <sac-nav>
+ *       },                         // (nav.host = context.host): ⌂ jump, suite
+ *                                  // nav in the burger, controls in the ribbon
  *       deepLink: {
  *           set(x)                 // window: writes ?app=<id>&<x entries> via
  *                                  // history.replaceState; set(null) cleans the
@@ -756,7 +764,8 @@
         viewHost = resolveEl(opts.viewHost) || viewHost || document.getElementById("app-root");
         if (opts.home) homeEl = resolveEl(opts.home);
         // What this host injects into every view's own chrome (context.host):
-        // its name and the address that jumps back to it.
+        // its name, the jump-home address, and optionally its suite nav and
+        // toolbar controls (see the header).
         if (opts.host) hostInfo = Object.assign({}, opts.host);
         if (!baseTitle) baseTitle = document.title;
 

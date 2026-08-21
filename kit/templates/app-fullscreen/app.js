@@ -41,14 +41,11 @@
             this._ctx = context;
             // The brand links to the app's own root — wherever that is.
             this._nav.setAttribute("brand-href", context.href(""));
-            // The host's injected presence — the ONE thing a desktop adds to
-            // the app's chrome. Standalone context.host is null and the nav
-            // shows no jump.
-            if (context.host) {
-                this._nav.setAttribute("host-label", context.host.name || "");
-                this._nav.setAttribute("host-href",  context.host.href || "#/");
-                if (context.host.icon) this._nav.setAttribute("host-icon", context.host.icon);
-            }
+            // The host's injection — jump-home, the suite's nav (burger
+            // panel) and its toolbar controls (right end of the ribbon),
+            // all rendered by the app's own nav. Standalone context.host
+            // is null and the nav shows none of it.
+            this._nav.host = context.host;
             this._show(context.route || SECTIONS[0].id);
             // Rail clicks, the back button and pasted URLs all arrive here.
             this._offRoute = context.onRoute((route) => this._show(route || SECTIONS[0].id));

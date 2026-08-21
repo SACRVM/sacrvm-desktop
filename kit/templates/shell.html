@@ -89,11 +89,21 @@
             });
 
             // viewHost: where view apps mount. home: shown while none is
-            // open. host: injected into every app's own chrome (context.host).
+            // open. host: the package injected into every app's own chrome
+            // (context.host) — the jump home, the suite's navigation (the
+            // app's burger panel renders it) and the host's toolbar controls
+            // (the right end of the app's ribbon; entries take href OR
+            // onClick — a signed-in user chip goes here).
             sac.apps.init({
                 viewHost: "#app-stage",
                 home:     "#app-home",
-                host:     { name: "MY SUITE", icon: "cube", href: "#/" },
+                host: {
+                    name: "MY SUITE", icon: "cube", href: "#/",
+                    nav: sac.router.routes()
+                        .filter((r) => r.hash !== "#/")
+                        .map((r) => ({ label: r.label, href: r.hash, icon: r.icon })),
+                    // toolbar: [{ icon: "user", label: "chloe", onClick: () => … }],
+                },
             });
         }
 

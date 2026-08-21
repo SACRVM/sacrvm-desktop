@@ -51,8 +51,8 @@
          * app is complete: it draws its own chrome — toolbar (the .toolbar
          * recipe) and rail (<sac-sidebar> with the `items` property) — in
          * its own markup. A host injects context INTO the app
-         * (context.host: jump-home address and extra buttons, the way
-         * identity already works); it never offers the app a hull to
+         * (context.host: jump-home, suite navigation, toolbar controls —
+         * the way identity already works); it never offers the app a hull to
          * project fragments into. Actions the command palette should reach
          * are registered on sac.commands. */
     };

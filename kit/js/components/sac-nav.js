@@ -17,11 +17,24 @@
  *   brand-icon — sac.icons name rendered before the brand text (optional).
  *   brand-href — where the brand links to (default "#/", scope-aware).
  *   app-name   — accent-colored text after "BRAND ·".
- *   host-href  — the HOST'S jump-home address. This is the injection point
- *   host-label   of the app contract: a hosted app copies context.host into
- *   host-icon    these three (observed, so setting them in mount() works)
- *                and its own nav grows a muted "⌂ HOST ·" jump before the
- *                brand. Standalone they are absent and nothing renders.
+ *   host-href  — the HOST'S jump-home address. Attribute form of the jump
+ *   host-label   only; a hosted app normally sets the `host` PROPERTY instead
+ *   host-icon    (see below), which carries the whole injection. Observed, so
+ *                setting them in mount() works. Standalone they are absent
+ *                and nothing renders.
+ *
+ * Property:
+ *   host — THE injection point of the app contract. A hosted app assigns
+ *          context.host here, one line in mount():  nav.host = context.host
+ *          Shape: { name, icon, href,          → the muted "⌂ HOST ·" jump
+ *                   nav:     [{label, href, icon?}],       → a labeled host
+ *                            group at the top of the burger panel (the
+ *                            suite's cross-app navigation)
+ *                   toolbar: [{icon, label?, title?, href? | onClick?}] }
+ *                            → host controls at the right end of the ribbon
+ *                            (a signed-in user, a suite-wide action, …)
+ *          Everything is rendered by the APP'S OWN nav — the host supplies
+ *          data, it never paints. null/absent = standalone, nothing renders.
  *
  * Slots:
  *   context — persistent controls (e.g. a scope switcher).
@@ -30,6 +43,11 @@
  *             its own buttons here. There is no projection surface — an app
  *             draws its own toolbar in its own area; a host injects context
  *             into the app, it does not offer the app its hull.
+ *
+ * Note: when host and app views share one page (the launcher pattern), the
+ * shared router lists the host's destinations too — routes whose hash
+ * matches a host.nav entry are dropped from the app's own group, so
+ * nothing is listed twice.
  *
  * Layout contract: content below needs padding-top: 50px (#app-root and
  * .main-layout in ui.css do this).
@@ -48,6 +66,14 @@ class SacNav extends HTMLElement {
         super();
         this.attachShadow({ mode: "open" });
         this.isOpen = false;
+        this._host = null;
+    }
+
+    /** The host's injection (see header). Assign context.host in mount(). */
+    get host() { return this._host; }
+    set host(v) {
+        this._host = v || null;
+        if (this.shadowRoot.firstChild) this.render();
     }
 
     connectedCallback() {
@@ -73,21 +99,32 @@ class SacNav extends HTMLElement {
         const brandHref = this.getAttribute("brand-href") || "#/";
         const appName   = this.getAttribute("app-name") || "";
         // The host's presence in the app's own chrome (see the header).
-        const hostHref  = this.getAttribute("host-href") || "";
-        const hostLabel = this.getAttribute("host-label") || "";
-        const hostIcon  = this.getAttribute("host-icon") || "home";
+        // The `host` property is the full injection; the host-* attributes
+        // remain as the static-page form of the jump alone.
+        const injected  = this._host || {};
+        const hostHref  = injected.href || this.getAttribute("host-href") || "";
+        const hostLabel = injected.name || this.getAttribute("host-label") || "";
+        const hostIcon  = injected.icon || this.getAttribute("host-icon") || "home";
+        const hostNav   = Array.isArray(injected.nav) ? injected.nav : [];
+        const hostTools = Array.isArray(injected.toolbar) ? injected.toolbar : [];
 
-        const routes = (window.sac?.router?.routes() || []).filter(r => r.hash !== "#/");
+        const routes = (window.sac?.router?.routes() || []).filter(r => r.hash !== "#/")
+            // On a shared page (launcher pattern) the router carries the
+            // host's destinations too — the host group already lists those,
+            // so the app's own group drops the duplicates.
+            .filter(r => !hostNav.some(e => e.href === r.hash));
         // currentResource() strips any scope prefix so "active" state
         // highlights the right nav item in every scope.
         const currentResource = window.sac?.router?.currentResource?.() || window.location.hash || "#/";
         const hrefFor = (h) => (h.startsWith("#") && window.sac?.scope?.hashFor) ? sac.scope.hashFor(h) : h;
         // A route with sub-routes stays active while you are inside it:
         // "#/styleguide" owns "#/styleguide/components" (sac.apps view apps
-        // address their own state that way).
-        const isActive = (r) => r.hash.startsWith("#")
-            ? (r.hash === currentResource || currentResource.startsWith(r.hash + "/"))
-            : window.location.pathname === r.hash;
+        // address their own state that way). Same rule for injected host
+        // entries, keyed on their href.
+        const isActiveHref = (h) => !!h && (h.startsWith("#")
+            ? (h === currentResource || currentResource.startsWith(h + "/"))
+            : window.location.pathname === h);
+        const isActive = (r) => isActiveHref(r.hash);
 
         // Kit strings: attribute position gets quote-escaping, the empty
         // state is a text node and gets &/< escaping instead.
@@ -245,6 +282,49 @@ class SacNav extends HTMLElement {
                     font-size: 0.85rem;
                     font-style: italic;
                 }
+                /* Group labels + separator, only rendered when the host
+                   injected a nav group (two groups need naming). */
+                .panel-label {
+                    padding: 0 1.5rem 0.4rem;
+                    color: var(--text-dim);
+                    font-size: 0.7rem;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.08em;
+                }
+                .panel-sep {
+                    border: none;
+                    border-top: 1px solid var(--border);
+                    margin: 0.9rem 1.5rem;
+                }
+
+                /* Host toolbar controls (injected via the host property) —
+                   right end of the ribbon, after the app's own toolbar. */
+                .host-tools {
+                    display: flex;
+                    gap: 0.25rem;
+                    align-items: center;
+                    margin-left: 0.5rem;
+                }
+                .host-tool {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.4rem;
+                    height: 32px;
+                    min-width: 32px;
+                    padding: 0 7px;
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    border-radius: var(--radius-m);
+                    color: var(--text-muted);
+                    text-decoration: none;
+                    font-family: inherit;
+                    font-size: 0.8rem;
+                }
+                .host-tool:hover { background: var(--hover); color: var(--text); }
+                .host-tool sac-icon { --icon-size: 17px; }
 
                 /* Scrollbar theme — duplicated because the global rule in
                    ui.css doesn't pierce Shadow DOM. */
@@ -281,11 +361,36 @@ class SacNav extends HTMLElement {
                 <div class="spacer"></div>
                 <div class="context"><slot name="context"></slot></div>
                 <div class="toolbar-slot"><slot name="toolbar"></slot></div>
+                ${hostTools.length ? `
+                <div class="host-tools">
+                    ${hostTools.map((tb, i) => {
+                        const icon  = tb.icon ? `<sac-icon name="${esc(tb.icon)}"></sac-icon>` : "";
+                        const label = tb.label ? `<span>${escText(tb.label)}</span>` : "";
+                        const title = esc(tb.title || tb.label || "");
+                        return tb.href
+                            ? `<a class="host-tool" href="${esc(tb.href)}" title="${title}">${icon}${label}</a>`
+                            : `<button class="host-tool" data-host-tool="${i}" title="${title}">${icon}${label}</button>`;
+                    }).join("")}
+                </div>` : ``}
             </nav>
             <div class="backdrop"></div>
             <aside class="panel">
+                ${hostNav.length ? `
+                <div class="panel-label">${escText(hostLabel || t("nav.host", "Host"))}</div>
+                <ul class="nav-list">
+                    ${hostNav.map(e => `
+                        <li>
+                            <a class="nav-item ${isActiveHref(e.href) ? "active" : ""}" href="${esc(hrefFor(e.href))}">
+                                ${e.icon ? `<sac-icon name="${esc(e.icon)}"></sac-icon>` : ""}
+                                <span>${escText(e.label)}</span>
+                            </a>
+                        </li>
+                    `).join("")}
+                </ul>
+                ${routes.length ? `<hr class="panel-sep">${(appName || brand)
+                    ? `<div class="panel-label">${escText(appName || brand)}</div>` : ``}` : ``}` : ``}
                 ${routes.length === 0
-                    ? `<div class="panel-empty">${L.noSections}</div>`
+                    ? (hostNav.length ? `` : `<div class="panel-empty">${L.noSections}</div>`)
                     : `<ul class="nav-list">
                          ${routes.map(r => `
                              <li>
@@ -323,6 +428,14 @@ class SacNav extends HTMLElement {
         // Clicking a panel nav-item also closes the panel.
         this.shadowRoot.querySelectorAll(".nav-item").forEach(el => {
             el.addEventListener("click", () => setOpen(false));
+        });
+
+        // Host toolbar controls: entries with onClick are buttons.
+        this.shadowRoot.querySelectorAll("[data-host-tool]").forEach(el => {
+            el.addEventListener("click", () => {
+                const entry = (this._host && this._host.toolbar || [])[Number(el.dataset.hostTool)];
+                if (entry && typeof entry.onClick === "function") entry.onClick(entry);
+            });
         });
 
         // Restore panel state after a re-render (routes changed while open).
