@@ -803,7 +803,13 @@
         meBtn.addEventListener("click", openSettings);
         if (window.sac.identity) { paintMe(); sac.identity.onChange(paintMe); }
 
-        sac.apps.init({ viewHost: "#app-stage", home: "#app-home" });
+        sac.apps.init({
+            viewHost: "#app-stage",
+            home: "#app-home",
+            // Injected into every app's own chrome as context.host: the
+            // way back, rendered by the app in its own ribbon.
+            host: { name: "SACRVM DESKTOP", icon: "cube", href: "#/" },
+        });
 
         // ?install=<url> installs by link — how you hand somebody an app.
         const wanted = new URLSearchParams(location.search).get("install");

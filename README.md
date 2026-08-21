@@ -40,7 +40,7 @@ index.html   the harness: the app alone, no desktop, F5 to develop
 ```
 
 `kind` is `"window"` (a dialog-style app, floating) or `"view"` (a fullscreen
-app that takes the stage and projects its navigation into the rail).
+app that takes the stage, complete with its own chrome — nav, toolbar, rail).
 
 How to write one, end to end:
 <https://sacrvm.github.io/sacrvm-appkit/#/build> — and the starting point,
@@ -56,6 +56,10 @@ grant neither, which is why apps check before using them.
 - **`context.identity`** — a name and an optional picture, set in Settings and
   read-only for apps. **Not authentication**: nothing is verified, and nothing
   leaves this device unless an app you installed sends it.
+
+The desktop also injects `context.host` — its name and address — which a view
+app renders in its own ribbon as the way back. Apps draw their whole chrome
+themselves; the desktop never lends them its hull.
 
 ## Known gaps
 

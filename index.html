@@ -23,55 +23,54 @@
     <script defer src="desktop.js"></script>
 </head>
 <body class="app-page">
-    <!-- The ribbon stays quiet: two icon buttons, no chrome competing with
-         the apps. Installing lives in the grid, where the apps are. -->
-    <sac-nav brand="SACRVM" brand-icon="cube" brand-href="#/" app-name="DESKTOP">
-        <div slot="toolbar" class="toolbar">
-            <!-- Only there once somebody said who they are: anonymous is the
-                 default, and an empty badge would be chrome about nothing. -->
-            <button class="nav-icon-btn who-btn" id="me-btn" hidden title="You" aria-label="You">
-                <sac-avatar id="me-avatar" style="--avatar-size: 26px"></sac-avatar>
-            </button>
-            <button class="nav-icon-btn" id="info-btn" title="How this works" aria-label="How this works">
-                <sac-icon name="info"></sac-icon>
-            </button>
-            <button class="nav-icon-btn" id="settings-btn" title="Settings" aria-label="Settings">
-                <sac-icon name="settings"></sac-icon>
-            </button>
-        </div>
-    </sac-nav>
-
-    <div class="workspace">
-        <div class="main-layout">
-            <!-- Filled by whichever app is on stage (context.sidebar). -->
-            <sac-sidebar></sac-sidebar>
-
-            <div class="app-stage" id="app-stage">
-                <div id="app-home">
-                    <div class="orb"></div>
-
-                    <div class="hub-container">
-                        <header>
-                            <h1>SACRVM DESKTOP</h1>
-                            <p class="intro-text">
-                                A desktop you fill yourself. Paste the URL of an app repository and it
-                                is installed — the desktop remembers where the app lives, never a copy
-                                of it. Make it yours in <strong>Settings</strong>, or read
-                                <strong>how this works</strong> — both up in the ribbon.
-                            </p>
-                        </header>
-
-                        <!-- Apps, then the install tile that closes the row.
-                             desktop.js keeps that tile last on every render. -->
-                        <main class="grid" id="tiles"></main>
-                    </div>
-
-                    <sac-footer brand="SACRVM DESKTOP"
-                                link-href="https://github.com/SACRVM/sacrvm-desktop" link-label="GITHUB"></sac-footer>
+    <!-- ONE stage, and the apps on it are COMPLETE: each draws its own
+         chrome. The desktop owns only its home section — ribbon included —
+         and the bare stage; on stage it is present through context.host,
+         rendered by the app in its own nav. -->
+    <div class="app-stage" id="app-stage">
+        <!-- Shown at "#/", hidden while a view app is on stage. The ribbon
+             is the home's chrome, so it lives and dies with it — and it
+             stays quiet: two icon buttons, no chrome competing with the
+             apps. Installing lives in the grid, where the apps are. -->
+        <div id="app-home" class="app-home">
+            <sac-nav brand="SACRVM" brand-icon="cube" brand-href="#/" app-name="DESKTOP">
+                <div slot="toolbar" class="toolbar">
+                    <!-- Only there once somebody said who they are: anonymous is the
+                         default, and an empty badge would be chrome about nothing. -->
+                    <button class="nav-icon-btn who-btn" id="me-btn" hidden title="You" aria-label="You">
+                        <sac-avatar id="me-avatar" style="--avatar-size: 26px"></sac-avatar>
+                    </button>
+                    <button class="nav-icon-btn" id="info-btn" title="How this works" aria-label="How this works">
+                        <sac-icon name="info"></sac-icon>
+                    </button>
+                    <button class="nav-icon-btn" id="settings-btn" title="Settings" aria-label="Settings">
+                        <sac-icon name="settings"></sac-icon>
+                    </button>
                 </div>
-                <!-- View apps are appended here by sac.apps. -->
+            </sac-nav>
+
+            <div class="orb"></div>
+
+            <div class="hub-container">
+                <header>
+                    <h1>SACRVM DESKTOP</h1>
+                    <p class="intro-text">
+                        A desktop you fill yourself. Paste the URL of an app repository and it
+                        is installed — the desktop remembers where the app lives, never a copy
+                        of it. Make it yours in <strong>Settings</strong>, or read
+                        <strong>how this works</strong> — both up in the ribbon.
+                    </p>
+                </header>
+
+                <!-- Apps, then the install tile that closes the row.
+                     desktop.js keeps that tile last on every render. -->
+                <main class="grid" id="tiles"></main>
             </div>
+
+            <sac-footer brand="SACRVM DESKTOP"
+                        link-href="https://github.com/SACRVM/sacrvm-desktop" link-label="GITHUB"></sac-footer>
         </div>
+        <!-- View apps are appended here by sac.apps. -->
     </div>
 
     <sac-command-palette></sac-command-palette>
