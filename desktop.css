@@ -226,11 +226,6 @@
 sac-dialog p { white-space: pre-line; }
 sac-dialog .settings p,
 sac-dialog .welcome p { white-space: normal; }
-/* The kit means to put 8px between slotted paragraphs, but its
-   ::slotted(p + p) is invalid CSS (combinators cannot enter ::slotted) and
-   the browser drops the rule. Same value from here until the kit fixes it —
-   document styles win over ::slotted, so this stays correct afterwards. */
-sac-dialog p + p { margin-top: 8px; }
 
 .empty {
     color: var(--text-muted);
