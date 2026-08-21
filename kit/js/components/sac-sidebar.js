@@ -1,26 +1,26 @@
 /**
  * <sac-sidebar></sac-sidebar>
  *
- * The shell's left rail. It renders NOTHING of its own: the active view app
- * projects its navigation through `sac.sidebar.set([...])` (apps use the
- * scoped `context.sidebar` they receive in mount()), exactly the way views
- * project ribbon actions through `sac.toolbar`. One rail, one look, whichever
- * app is in front.
+ * A left rail — the APP'S OWN chrome. The app puts the element in its own
+ * markup and assigns `items`; nothing is projected from anywhere. One rail,
+ * one look, and the app that draws it owns it (the same inversion as the
+ * toolbar: a host injects context into an app, it never offers the app a
+ * hull).
  *
- * With no items the rail hides itself, so a shell showing its home grid gets
- * the full width back.
+ * With no items the rail hides itself.
  *
- * Item shape (see sac.sidebar in globals.js):
- *   { label, icon?, href?, onClick?, active?, disabled? }
- *   { section }   — a group heading on its own
+ * Property:
+ *   items — array, re-renders on assignment:
+ *     { label, icon?, href?, onClick?, active?, disabled? }
+ *     { section }   — a group heading on its own
  *
  * Attributes:
- *   width — rail width, default 220px. Also settable per shell via the
+ *   width — rail width, default 220px. Also settable via the
  *           --sidebar-width custom property.
  *
  * Layout contract: the rail is a normal flex child — put it inside
- * .main-layout (which already clears the fixed <sac-nav>), beside the
- * element that hosts the views.
+ * .main-layout (which already clears the fixed <sac-nav>), beside your
+ * scrolling content (.app-scroll).
  */
 (function () {
 
@@ -35,24 +35,23 @@ class SacSidebar extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: "open" });
+        this._items = [];
     }
 
     connectedCallback() {
         if (!this.shadowRoot.firstChild) this._render();
         this._syncWidth();
-        // Register as the sac.sidebar renderer + paint whatever is already set.
-        if (window.sac?.sidebar) {
-            sac.sidebar._host = this;
-            this.renderSidebar();
-        }
-    }
-
-    disconnectedCallback() {
-        if (window.sac?.sidebar?._host === this) sac.sidebar._host = null;
+        this.renderSidebar();
     }
 
     attributeChangedCallback() {
         if (this.shadowRoot.firstChild) this._syncWidth();
+    }
+
+    get items() { return this._items; }
+    set items(v) {
+        this._items = Array.isArray(v) ? v : [];
+        if (this.shadowRoot.firstChild) this.renderSidebar();
     }
 
     _syncWidth() {
@@ -62,16 +61,16 @@ class SacSidebar extends HTMLElement {
     }
 
     /**
-     * Rewrites the list from sac.sidebar._items. Called by sac.sidebar.set()
-     * and on connect. In-place: the rail never re-renders its own shell.
+     * Rewrites the list from this.items. Called by the setter and on
+     * connect. In-place: the rail never re-renders its own shell.
      */
     renderSidebar() {
         const list = this.shadowRoot.getElementById("list");
         if (!list) return;
-        const items = (window.sac?.sidebar?._items) || [];
+        const items = this._items;
 
-        // Empty rail = no rail. Hidden rather than removed, so the projection
-        // can fill it again without the shell re-laying anything out.
+        // Empty rail = no rail. Hidden rather than removed, so a later
+        // assignment fills it again without the app re-laying anything out.
         this.toggleAttribute("hidden", items.length === 0);
         if (!items.length) { list.replaceChildren(); return; }
 

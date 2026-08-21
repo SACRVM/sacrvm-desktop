@@ -7,17 +7,15 @@
  *
  * From there it is self-wiring. It binds `mod+k` (Ctrl-K / ⌘K) through
  * sac.hotkeys on connect, and it does NOT keep a command list of its own —
- * it merges three live sources every time it opens, so what you see is
+ * it merges two live sources every time it opens, so what you see is
  * always the app's current state:
  *
  *   1. Views    — sac.router.routes(), one row per registered route with a
  *                 label; running it calls sac.router.navigate(hash).
- *   2. Actions  — the nav ribbon's current toolbar projection
- *                 (sac.toolbar._items); disabled items are skipped, running
- *                 a row calls the item's onClick. Per-view toolbar actions
- *                 are therefore keyboard-reachable for free.
- *   3. Commands — everything registered on sac.commands (below), grouped by
- *                 each command's `group` (default "Commands").
+ *   2. Commands — everything registered on sac.commands (below), grouped by
+ *                 each command's `group` (default "Commands"). An app owns
+ *                 its toolbar, so toolbar actions it wants keyboard-reachable
+ *                 are registered here too.
  *
  * Methods:
  *   open() / close() / toggle()
@@ -236,22 +234,9 @@
                 }
             }
 
-            // 2. Actions — the nav ribbon's current toolbar projection.
-            const items = (window.sac && sac.toolbar && sac.toolbar._items) || [];
-            for (const item of items) {
-                if (!item || item.disabled) continue;
-                const label = item.title || item.icon;
-                if (!label) continue;                     // an unlabelled icon is unsearchable
-                entries.push({
-                    group: t("palette.group-actions", "Actions"),
-                    label: String(label),
-                    icon:  item.icon || null,
-                    hotkey: null,
-                    run:   () => { if (typeof item.onClick === "function") item.onClick(); },
-                });
-            }
-
-            // 3. App commands.
+            // 2. App commands. (There is no toolbar-projection source any
+            //    more — an app owns its toolbar and registers the actions it
+            //    wants keyboard-reachable on sac.commands.)
             const commands = (window.sac && sac.commands && sac.commands.list()) || [];
             for (const cmd of commands) {
                 entries.push({

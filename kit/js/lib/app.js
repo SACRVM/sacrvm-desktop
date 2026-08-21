@@ -102,12 +102,8 @@
                 window.addEventListener("hashchange", on);
                 return () => window.removeEventListener("hashchange", on);
             },
-            // Works when the harness page has a <sac-sidebar>; a no-op when
-            // it does not, so the app never has to check.
-            sidebar: {
-                set(items) { if (window.sac.sidebar) sac.sidebar.set(items); },
-                clear() { if (window.sac.sidebar) sac.sidebar.clear(); },
-            },
+            // Standalone the app IS its own host — nothing is injected.
+            host: null,
             // Same contract as on a desktop, different address space: there a
             // route sits under "#/<id>/", here it is the whole hash. Apps
             // build links with this and work in both places unchanged.

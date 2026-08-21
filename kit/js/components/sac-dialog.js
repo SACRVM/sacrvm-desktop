@@ -194,7 +194,11 @@ class SacDialog extends HTMLElement {
                     border-radius: var(--radius-s);
                 }
                 .body ::slotted(p) { margin: 0; }
-                .body ::slotted(p + p) { margin-top: 8px; }
+                /* No combinators inside ::slotted() — it takes a compound
+                   selector only, anything else is silently dropped. The
+                   structural pseudo-class matches against the light-DOM
+                   siblings and does the same job. */
+                .body ::slotted(p:not(:first-of-type)) { margin-top: 8px; }
 
                 .actions {
                     flex: none;

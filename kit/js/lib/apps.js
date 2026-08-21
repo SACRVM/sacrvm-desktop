@@ -45,18 +45,23 @@
  *             after it ("#/styleguide/components"), so back/forward and
  *             bookmarks work. The element is created once and kept (hidden)
  *             when you switch away, so state survives; mount() runs once.
- *             A view projects its navigation into the shell's rail through
- *             context.sidebar instead of drawing one — same idea as
- *             sac.toolbar for the ribbon.
+ *             A view is a COMPLETE app: it draws its own chrome — nav,
+ *             toolbar, rail — in its own markup. The host injects context
+ *             into it (context.host: the jump-home address it renders in
+ *             its own nav), never the other way around.
  *   "page"    its own document. Only for apps that must also stand alone.
  *
  * Shell contract for views (see kit/templates/shell.html):
  *
- *   sac.apps.init({ viewHost: "#app-stage", home: "#app-home" });
+ *   sac.apps.init({ viewHost: "#app-stage", home: "#app-home",
+ *                   host: { name: "MY DESKTOP", icon: "cube", href: "#/" } });
  *
  *   viewHost — element the view elements are appended to (default "#app-root",
  *              the kit's SPA convention)
  *   home     — element shown while no view is active, i.e. at "#/" (optional)
+ *   host     — what this host injects into every view's own chrome; apps
+ *              receive it as context.host and render the jump themselves
+ *              (optional — without it apps show no host presence)
  *
  * API:
  *   register(manifest)   upsert by id (re-register replaces; first
@@ -110,10 +115,10 @@
  *       onRoute(cb),               // views only: cb(route) whenever the sub-route
  *                                  // changes from outside — a rail link, the back
  *                                  // button, a pasted URL. Returns an unsubscribe.
- *       sidebar: {                 // views only: this app's slice of the shell rail.
- *           set(items),            // items render while THIS app is on stage and
- *           clear()                // are restored when you switch back to it
- *       },
+ *       host: {                    // views only, null standalone: what the HOST
+ *           name, icon, href       // injects into the app's own chrome — the
+ *       },                         // jump-home address the app renders in its
+ *                                  // own <sac-nav> (host-label/-href/-icon)
  *       deepLink: {
  *           set(x)                 // window: writes ?app=<id>&<x entries> via
  *                                  // history.replaceState; set(null) cleans the
@@ -152,7 +157,7 @@
 
     const registry = new Map();   // id  → manifest (internal copy)
     const windows  = new Map();   // id  → { win, el }
-    const views    = new Map();   // id  → { el, route, sidebar, routeCbs }
+    const views    = new Map();   // id  → { el, route, routeCbs }
     const injected = new Map();   // src → Promise (each script injected once)
     const opening  = new Map();   // id  → in-flight open() Promise
     const viewOpening = new Map();// id  → in-flight view creation Promise
@@ -163,6 +168,7 @@
     let homeEl    = null;         // shown while no view is on stage ("#/")
     let activeId  = null;         // the view currently on stage
     let baseTitle = "";           // document.title at init, restored at home
+    let hostInfo  = null;         // { name, icon, href } injected as context.host
 
     /* ------------------------------------------------------------- URL ---- */
 
@@ -307,17 +313,10 @@
             return () => r.routeCbs.delete(cb);
         };
 
-        // Scoped rail: items are remembered per app and rendered only while
-        // that app is on stage, so switching away and back restores them.
-        ctx.sidebar = {
-            set(items) {
-                const r = views.get(id);
-                if (!r) return;
-                r.sidebar = Array.isArray(items) ? items : [];
-                if (activeId === id && window.sac.sidebar) sac.sidebar.set(r.sidebar);
-            },
-            clear() { this.set([]); },
-        };
+        // What the host injects into the app's own chrome. Null when the
+        // host declared none — the app then renders no jump and is simply
+        // complete on its own.
+        ctx.host = hostInfo ? Object.assign({}, hostInfo) : null;
 
         // The host owns the address space, so an app must never build one:
         // here a route lives under "#/<id>/", standalone it is just "#/".
@@ -446,7 +445,6 @@
         }
 
         deliverRoute(id, route);
-        if (window.sac.sidebar) sac.sidebar.set(rec.sidebar);
         const manifest = registry.get(id);
         if (baseTitle && manifest) document.title = `${displayName(manifest)} · ${baseTitle}`;
         emitChanged(id, "view");
@@ -456,7 +454,6 @@
         views.forEach((r) => { r.el.hidden = true; });
         activeId = null;
         if (homeEl) homeEl.hidden = false;
-        if (window.sac.sidebar) sac.sidebar.clear();
         if (baseTitle) document.title = baseTitle;
         emitChanged(null, "home");
     }
@@ -505,10 +502,10 @@
         // Per-app accent: one seed on the view, everything derived follows.
         if (manifest.accent) el.style.setProperty("--accent", manifest.accent);
 
-        // The record exists BEFORE mount(): context.route and context.sidebar
-        // read through it. showView() does the mounting, once it is visible.
+        // The record exists BEFORE mount(): context.route reads through it.
+        // showView() does the mounting, once it is visible.
         views.set(id, {
-            el, route: route || "", sidebar: [], routeCbs: new Set(),
+            el, route: route || "", routeCbs: new Set(),
             mounted: false, params,
         });
         host.appendChild(el);
@@ -758,6 +755,9 @@
         // working with no options at all.
         viewHost = resolveEl(opts.viewHost) || viewHost || document.getElementById("app-root");
         if (opts.home) homeEl = resolveEl(opts.home);
+        // What this host injects into every view's own chrome (context.host):
+        // its name and the address that jumps back to it.
+        if (opts.host) hostInfo = Object.assign({}, opts.host);
         if (!baseTitle) baseTitle = document.title;
 
         if (!inited) {

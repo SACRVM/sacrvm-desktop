@@ -1047,19 +1047,34 @@ canvas {
     min-height: 100vh;
 }
 
-/* Shell stage (sac.apps kind:"view") — the area beside <sac-sidebar> that
-   holds the home section and the mounted view apps. It owns the scrolling,
-   so the rail and the ribbon stay put. */
+/* Shell stage (sac.apps kind:"view") — the FULL viewport. An app is
+   complete: each mounted view draws its own chrome (nav, toolbar, rail) and
+   manages its own scrolling. The host's hull exists only inside its home
+   section; on stage, the host is present through context.host, rendered by
+   the app in its own nav. */
 .app-stage {
+    position: relative;
+    height: 100vh;
+    min-width: 0;
+    overflow: hidden;
+}
+/* A view fills the stage. [hidden] needs saying out loud: a custom element
+   with a display of its own beats the UA's hidden rule. */
+.sac-app-view { display: block; height: 100%; }
+.sac-app-view[hidden] { display: none; }
+/* Inside an app element, .main-layout gets its height from the view (in a
+   tool PAGE it is a flex child of .workspace instead — both end at 100vh). */
+.sac-app-view .main-layout { height: 100%; }
+/* The host's home section scrolls itself; its own fixed nav sits above. */
+.app-home { height: 100%; overflow-y: auto; }
+/* An app's scrolling content region, beside its rail inside .main-layout —
+   the region formerly known as the shell's stage scroll. */
+.app-scroll {
     flex: 1;
     min-width: 0;
     overflow-y: auto;
     position: relative;
 }
-/* A view fills the stage. [hidden] needs saying out loud: a custom element
-   with a display of its own beats the UA's hidden rule. */
-.sac-app-view { display: block; }
-.sac-app-view[hidden] { display: none; }
 
 .center-shell {
     min-height: 100vh;

@@ -12,23 +12,20 @@
     <script defer src="../kit/js/all.js"></script>
 </head>
 <body class="app-page">
-    <!-- ONE hub: the ribbon, the rail and the stage belong to the shell.
-         Everything else is an app that runs ON the stage. -->
-    <sac-nav brand="MY SUITE" brand-icon="cube" brand-href="#/">
-        <div slot="context"><sac-theme-toggle></sac-theme-toggle></div>
-    </sac-nav>
+    <!-- ONE hub, and the apps on it are COMPLETE: each draws its own chrome.
+         The shell owns only its home section — nav included — and the bare
+         stage. On stage, the host is present through context.host, rendered
+         by the app in its own nav. -->
+    <div class="app-stage" id="app-stage">
+        <!-- Shown at "#/", hidden while a view app is on stage. Its nav is
+             the HOME'S chrome, so it lives and dies with it. -->
+        <div id="app-home" class="app-home">
+            <sac-nav brand="MY SUITE" brand-icon="cube" brand-href="#/">
+                <div slot="context"><sac-theme-toggle></sac-theme-toggle></div>
+            </sac-nav>
 
-    <div class="workspace">
-        <div class="main-layout">
-            <!-- Renders whatever the app on stage projects through
-                 context.sidebar; hides itself while nothing is projected. -->
-            <sac-sidebar></sac-sidebar>
-
-            <div class="app-stage" id="app-stage">
-                <!-- Shown at "#/", hidden while a view app is on stage. -->
-                <div id="app-home">
-                    <div class="orb"></div>
-                    <div class="hub-container">
+            <div class="orb"></div>
+            <div class="hub-container">
                         <header>
                             <h1>MY SUITE</h1>
                             <p class="intro-text">One line about the suite.</p>
@@ -53,11 +50,9 @@
                             </a>
                         </main>
                     </div>
-                    <sac-footer brand="MY SUITE" version="1.0.0"></sac-footer>
-                </div>
-                <!-- View apps are appended here by sac.apps. -->
-            </div>
+            <sac-footer brand="MY SUITE" version="1.0.0"></sac-footer>
         </div>
+        <!-- View apps are appended here by sac.apps. -->
     </div>
 
     <sac-command-palette></sac-command-palette>
@@ -67,9 +62,9 @@
         // DOMContentLoaded — boot on the autoloader's readiness signal. With
         // cherry-picked <script defer> tags, DOMContentLoaded is fine.
         function boot() {
-            // kind:"view" — the app takes over the stage. Addressed at
-            // "#/<id>", listed in the nav panel automatically, and it projects
-            // its own navigation into the rail via context.sidebar.
+            // kind:"view" — the app takes over the stage, COMPLETE with its
+            // own chrome. Addressed at "#/<id>", listed in the nav panel
+            // automatically.
             sac.apps.register({
                 id:          "notes",
                 name:        "Notes",
@@ -93,8 +88,13 @@
                 height: "320px",
             });
 
-            // viewHost: where view apps mount. home: shown while none is open.
-            sac.apps.init({ viewHost: "#app-stage", home: "#app-home" });
+            // viewHost: where view apps mount. home: shown while none is
+            // open. host: injected into every app's own chrome (context.host).
+            sac.apps.init({
+                viewHost: "#app-stage",
+                home:     "#app-home",
+                host:     { name: "MY SUITE", icon: "cube", href: "#/" },
+            });
         }
 
         if (window.sacReady) boot();

@@ -1,15 +1,13 @@
 /**
  * <app-my-fullscreen-app> — a FULLSCREEN app (manifest kind: "view").
  *
- * It takes over the desktop's stage and lives at "#/<id>", with its own state
- * addressed after that: "#/my-fullscreen-app/second". Anything that used to
- * be a page of its own belongs here.
+ * The app is COMPLETE: it draws its own chrome — nav, rail, scrolling body.
+ * Standalone it is its own host; index.html is just the page that loads it.
+ * On a desktop, the host injects its presence through context.host and the
+ * app copies it onto its own <sac-nav> — nothing else changes.
  *
- * Two things a dialog app does not do:
- *   - it PROJECTS its navigation into the desktop's rail (context.sidebar)
- *     instead of drawing one, so every app wears the same chrome
- *   - it owns a sub-route: context.route in, context.deepLink.set() out,
- *     context.onRoute() for the back button and pasted links
+ * It owns a sub-route: context.route in, context.deepLink.set() out,
+ * context.onRoute() for the back button and pasted links.
  */
 (function () {
     const BASE = sac.app.base();
@@ -23,12 +21,34 @@
     class AppMyFullscreenApp extends sac.app.Element {
         build() {
             sac.app.styles(BASE + "app.css", "app-my-fullscreen-app-css");
-            this.innerHTML = `<div class="page"></div>`;
+            // The app's own chrome. The rail is the app's table of contents;
+            // sliders and colour fields stay in the content area — they are
+            // not navigation.
+            this.innerHTML = `
+                <sac-nav brand="MY FULLSCREEN APP" brand-icon="cube">
+                    <div slot="context"><sac-theme-toggle></sac-theme-toggle></div>
+                </sac-nav>
+                <div class="main-layout">
+                    <sac-sidebar></sac-sidebar>
+                    <div class="app-scroll"><div class="page"></div></div>
+                </div>`;
+            this._nav  = this.querySelector("sac-nav");
+            this._rail = this.querySelector("sac-sidebar");
             this._page = this.querySelector(".page");
         }
 
         onMount(context) {
             this._ctx = context;
+            // The brand links to the app's own root — wherever that is.
+            this._nav.setAttribute("brand-href", context.href(""));
+            // The host's injected presence — the ONE thing a desktop adds to
+            // the app's chrome. Standalone context.host is null and the nav
+            // shows no jump.
+            if (context.host) {
+                this._nav.setAttribute("host-label", context.host.name || "");
+                this._nav.setAttribute("host-href",  context.host.href || "#/");
+                if (context.host.icon) this._nav.setAttribute("host-icon", context.host.icon);
+            }
             this._show(context.route || SECTIONS[0].id);
             // Rail clicks, the back button and pasted URLs all arrive here.
             this._offRoute = context.onRoute((route) => this._show(route || SECTIONS[0].id));
@@ -36,7 +56,6 @@
 
         onUnmount() {
             if (this._offRoute) { this._offRoute(); this._offRoute = null; }
-            this._ctx.sidebar.clear();
         }
 
         _show(id) {
@@ -50,9 +69,7 @@
                    <code>${this._ctx.href(section.id)}</code>.</p>
             `;
 
-            // The rail is a NAVIGATION rail. Sliders and colour fields stay
-            // inside your own area; they are not navigation.
-            this._ctx.sidebar.set([
+            this._rail.items = [
                 { section: "My Fullscreen App" },
                 ...SECTIONS.map((s) => ({
                     label:  s.label,
@@ -62,7 +79,7 @@
                     href:   this._ctx.href(s.id),
                     active: s.id === section.id,
                 })),
-            ]);
+            ];
 
             // Make the current state linkable. replaceState — switching
             // sections is not a new page in the history.

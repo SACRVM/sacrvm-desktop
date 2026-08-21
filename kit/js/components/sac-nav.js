@@ -17,16 +17,19 @@
  *   brand-icon — sac.icons name rendered before the brand text (optional).
  *   brand-href — where the brand links to (default "#/", scope-aware).
  *   app-name   — accent-colored text after "BRAND ·".
+ *   host-href  — the HOST'S jump-home address. This is the injection point
+ *   host-label   of the app contract: a hosted app copies context.host into
+ *   host-icon    these three (observed, so setting them in mount() works)
+ *                and its own nav grows a muted "⌂ HOST ·" jump before the
+ *                brand. Standalone they are absent and nothing renders.
  *
  * Slots:
- *   context — a slot renderToolbar() never touches, so a persistent control
- *             (e.g. a scope switcher) survives per-view toolbar repaints.
- *   toolbar — right-aligned content inside the ribbon.
- *
- * Toolbar projection (SPA alternative to the slot):
- *   sac.toolbar.set([{ icon, title, onClick, active?, disabled? }])
- *   <sac-nav> registers itself as renderer on connect; the router clears the
- *   items between view swaps.
+ *   context — persistent controls (e.g. a scope switcher).
+ *   toolbar — right-aligned content inside the ribbon. This is the OWNER'S
+ *             chrome: the page or host that writes the <sac-nav> markup puts
+ *             its own buttons here. There is no projection surface — an app
+ *             draws its own toolbar in its own area; a host injects context
+ *             into the app, it does not offer the app its hull.
  *
  * Layout contract: content below needs padding-top: 50px (#app-root and
  * .main-layout in ui.css do this).
@@ -39,6 +42,8 @@
         (window.sac && window.sac.t) ? window.sac.t(key, fallback) : fallback;
 
 class SacNav extends HTMLElement {
+    static get observedAttributes() { return ["host-href", "host-label", "host-icon"]; }
+
     constructor() {
         super();
         this.attachShadow({ mode: "open" });
@@ -48,11 +53,11 @@ class SacNav extends HTMLElement {
     connectedCallback() {
         this.render();
         this.attachPersistentHandlers();
-        // Register as the sac.toolbar renderer + render any items already set.
-        if (window.sac?.toolbar) {
-            sac.toolbar._nav = this;
-            this.renderToolbar();
-        }
+    }
+
+    attributeChangedCallback() {
+        // Hosted apps copy context.host in during mount(), after connect.
+        if (this.shadowRoot.firstChild) this.render();
     }
 
     disconnectedCallback() {
@@ -60,33 +65,6 @@ class SacNav extends HTMLElement {
         if (this._hashHandler)  window.removeEventListener("hashchange", this._hashHandler);
         if (this._routeHandler) window.removeEventListener("sac:route-registered", this._routeHandler);
         if (this._scopeHandler) window.removeEventListener("sac:scope-changed", this._scopeHandler);
-        if (window.sac?.toolbar?._nav === this) sac.toolbar._nav = null;
-    }
-
-    /**
-     * Rewrites the .toolbar-projected container's children from
-     * sac.toolbar._items. Called by sac.toolbar.set() and on connect.
-     */
-    renderToolbar() {
-        const container = this.shadowRoot.querySelector(".toolbar-projected");
-        if (!container) return;
-        const items = (window.sac?.toolbar?._items) || [];
-        container.innerHTML = items.map((item, i) => `
-            <button class="toolbar-btn ${item.active ? "active" : ""}"
-                    data-idx="${i}"
-                    ${item.disabled ? "disabled" : ""}
-                    title="${(item.title || "").replace(/"/g, "&quot;")}">
-                <sac-icon name="${item.icon}"></sac-icon>
-            </button>
-        `).join("");
-        container.querySelectorAll("button[data-idx]").forEach(btn => {
-            btn.addEventListener("click", () => {
-                const idx = parseInt(btn.dataset.idx, 10);
-                const item = (window.sac?.toolbar?._items || [])[idx];
-                if (item?.disabled) return;
-                item?.onClick?.();
-            });
-        });
     }
 
     render() {
@@ -94,6 +72,10 @@ class SacNav extends HTMLElement {
         const brandIcon = this.getAttribute("brand-icon") || "";
         const brandHref = this.getAttribute("brand-href") || "#/";
         const appName   = this.getAttribute("app-name") || "";
+        // The host's presence in the app's own chrome (see the header).
+        const hostHref  = this.getAttribute("host-href") || "";
+        const hostLabel = this.getAttribute("host-label") || "";
+        const hostIcon  = this.getAttribute("host-icon") || "home";
 
         const routes = (window.sac?.router?.routes() || []).filter(r => r.hash !== "#/");
         // currentResource() strips any scope prefix so "active" state
@@ -180,39 +162,31 @@ class SacNav extends HTMLElement {
                 }
                 .brand .sep { color: color-mix(in srgb, var(--fg) 30%, transparent); }
                 .brand .app-name { color: var(--accent); }
+
+                /* The host's injected presence: muted, before the brand. */
+                .host-jump {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.4rem;
+                    padding: 4px 8px;
+                    border-radius: var(--radius-m);
+                    color: var(--text-muted);
+                    text-decoration: none;
+                    font-family: 'Outfit', sans-serif;
+                    font-weight: 700;
+                    font-size: 0.8rem;
+                    letter-spacing: 0.06em;
+                }
+                .host-jump:hover { background: var(--hover); color: var(--text); }
+                .host-jump sac-icon { --icon-size: 15px; }
+                .host-sep {
+                    margin: 0 0.5rem 0 0.25rem;
+                    color: color-mix(in srgb, var(--fg) 30%, transparent);
+                }
                 .spacer { flex: 1; }
-                .toolbar-slot, .toolbar-projected { display: flex; gap: 0.25rem; align-items: center; }
+                .toolbar-slot { display: flex; gap: 0.25rem; align-items: center; }
                 .context { display: flex; align-items: center; margin-right: 0.6rem; }
                 .context:empty { margin-right: 0; }
-
-                .toolbar-btn {
-                    background: none;
-                    border: none;
-                    color: color-mix(in srgb, var(--fg) 78%, var(--bg));
-                    padding: 5px 7px;
-                    border-radius: var(--radius-m);
-                    cursor: pointer;
-                    display: inline-flex;
-                    align-items: center;
-                    transition: background 0.15s, color 0.15s;
-                }
-                .toolbar-btn:hover {
-                    background: var(--hover);
-                    color: var(--text);
-                }
-                .toolbar-btn.active {
-                    background: var(--accent-tint);
-                    color: var(--accent);
-                }
-                .toolbar-btn:disabled {
-                    opacity: 0.35;
-                    cursor: not-allowed;
-                }
-                .toolbar-btn:disabled:hover {
-                    background: none;
-                    color: color-mix(in srgb, var(--fg) 78%, var(--bg));
-                }
-                .toolbar-btn sac-icon { --icon-size: 18px; }
 
                 .backdrop {
                     position: fixed;
@@ -291,6 +265,13 @@ class SacNav extends HTMLElement {
                 <button class="menu-btn" aria-label="${L.menu}" aria-expanded="false">
                     <span></span><span></span><span></span>
                 </button>
+                ${hostHref ? `
+                <a class="host-jump" href="${hostHref.replace(/"/g, "&quot;")}"
+                   title="${(hostLabel || "Home").replace(/"/g, "&quot;")}">
+                    <sac-icon name="${hostIcon}"></sac-icon>
+                    ${hostLabel ? `<span>${hostLabel}</span>` : ``}
+                </a>
+                <span class="sep host-sep">·</span>` : ``}
                 <a class="brand" href="${hrefFor(brandHref)}">
                     ${brandIcon ? `<span class="brand-mark"><sac-icon name="${brandIcon}"></sac-icon></span>` : ``}
                     ${brand ? `<span>${brand}</span>` : ``}
@@ -300,7 +281,6 @@ class SacNav extends HTMLElement {
                 <div class="spacer"></div>
                 <div class="context"><slot name="context"></slot></div>
                 <div class="toolbar-slot"><slot name="toolbar"></slot></div>
-                <div class="toolbar-projected"></div>
             </nav>
             <div class="backdrop"></div>
             <aside class="panel">
@@ -344,9 +324,6 @@ class SacNav extends HTMLElement {
         this.shadowRoot.querySelectorAll(".nav-item").forEach(el => {
             el.addEventListener("click", () => setOpen(false));
         });
-
-        // Re-render the projected toolbar (render() wiped the shadow root).
-        this.renderToolbar();
 
         // Restore panel state after a re-render (routes changed while open).
         if (this.isOpen) setOpen(true);

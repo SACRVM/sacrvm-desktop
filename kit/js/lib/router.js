@@ -35,12 +35,6 @@
 
     function render() {
         if (!rootElement) return;
-        // Clear any per-view toolbar items left over from the previous view.
-        // Views that need toolbar actions call sac.toolbar.set(...) in
-        // connectedCallback (or on selection change) — the outgoing view
-        // never needs to clean up explicitly.
-        if (window.sac?.toolbar) sac.toolbar.clear();
-
         const key = resourceHash();
         const entry = routes.get(key) || routes.get("#/");
         if (!entry || !entry.tag) { rootElement.innerHTML = ""; return; }
