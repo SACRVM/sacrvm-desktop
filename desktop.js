@@ -146,7 +146,7 @@
             item("remove", "Remove from this desktop", true),
         );
 
-        menu.addEventListener("sac:menu-select", (e) => {
+        menu.addEventListener("sac:select", (e) => {
             const action = e.detail.action;
             if (action === "remove") { uninstall(manifest); return; }
             if (action.startsWith("size:")) setTileSize(manifest, action.slice(5));
@@ -323,7 +323,7 @@
             });
             dlg.append(p, input, scope);
 
-            dlg.addEventListener("sac-dialog:action", (e) => {
+            dlg.addEventListener("sac:action", (e) => {
                 const value = input.value.trim();
                 setTimeout(() => {
                     dlg.remove();
@@ -485,7 +485,7 @@
 
         dlg.appendChild(wrap);
 
-        dlg.addEventListener("sac-dialog:action", (e) => {
+        dlg.addEventListener("sac:action", (e) => {
             const picks = e.detail.action === "install"
                 ? EXAMPLES.filter((ex, i) => wrap.querySelector(`[data-pick="${i}"]`).checked)
                 : [];
@@ -616,12 +616,12 @@
             if (custom.value.toLowerCase() !== v) custom.value = v;
         };
 
-        grid.addEventListener("sac:swatch-select", (e) => {
+        grid.addEventListener("sac:change", (e) => {
             setAccent(e.detail.value);
             mark(e.detail.value);
         });
         // The field fires only on user changes, so this cannot loop with mark().
-        custom.addEventListener("sac:color-change", (e) => {
+        custom.addEventListener("sac:change", (e) => {
             setAccent(e.detail.value);
             mark(e.detail.value);
         });
@@ -729,10 +729,10 @@
         });
 
         // Recount on every opening: apps come and go between them.
-        dlg.addEventListener("sac-dialog:open", () => { showOrphans(); fillIdentity(); });
+        dlg.addEventListener("sac:open", () => { showOrphans(); fillIdentity(); });
         // A dialog dismissed with Escape still means what was typed in it.
-        dlg.addEventListener("sac-dialog:action", commitIdentity);
-        dlg.addEventListener("sac-dialog:action", () => { /* stays in the DOM */ });
+        dlg.addEventListener("sac:action", commitIdentity);
+        dlg.addEventListener("sac:action", () => { /* stays in the DOM */ });
 
         document.body.appendChild(dlg);
         settingsDialog = dlg;
