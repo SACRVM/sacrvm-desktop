@@ -33,7 +33,10 @@
              stays quiet: two icon buttons, no chrome competing with the
              apps. Installing lives in the grid, where the apps are. -->
         <div id="app-home" class="app-home">
-            <sac-nav brand="SACRVM" brand-icon="cube" brand-href="#/" app-name="DESKTOP">
+            <!-- One flat brand, no accented app-name segment: the accent marks
+                 the app you are IN, and hosted apps render this same label as
+                 one quiet unit — home says it the same way. -->
+            <sac-nav brand="SACRVM DESKTOP" brand-icon="cube" brand-href="#/">
                 <div slot="toolbar" class="toolbar">
                     <button class="nav-icon-btn" id="info-btn" title="How this works" aria-label="How this works">
                         <sac-icon name="info"></sac-icon>
