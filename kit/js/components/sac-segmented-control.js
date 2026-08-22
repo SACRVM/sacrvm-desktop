@@ -10,20 +10,23 @@
  * icons or SVG inside them.
  *
  * Attributes:
- *   value — currently-active data-value.
+ *   value    — currently-active data-value.
+ *   disabled — presence = inert + dimmed, fires nothing, out of the tab order.
  *
  * Properties:
- *   value — get/set; setting fires `change`.
+ *   value    — get/set; setting is SILENT (fires nothing), like every value control.
+ *   disabled — get/set, reflects the attribute.
  *
  * Events:
- *   change — e.detail = new value (string), bubbles + composed.
+ *   sac:change — e.detail = { value } (string), on user click/keypress only.
+ *                Bubbles, NOT composed (native change semantics).
  *
  * Theming: the active segment uses --accent. For an edit-mode group, set
  * `style="--accent: var(--accent-edit)"` on the control — the per-element
  * accent override is the intended mechanism (no hardcoded per-value colors).
  */
 class SacSegmentedControl extends HTMLElement {
-    static get observedAttributes() { return ["value"]; }
+    static get observedAttributes() { return ["value", "disabled"]; }
 
     constructor() {
         super();
@@ -34,12 +37,23 @@ class SacSegmentedControl extends HTMLElement {
     attributeChangedCallback() { if (this.shadowRoot.firstChild) this.applyActive(); }
 
     get value() { return this.getAttribute("value") || ""; }
-    set value(v) {
+    // Programmatic set is SILENT — matches every other value control. Only a
+    // user click/keypress fires, via _commit().
+    set value(v) { this.setAttribute("value", v); }
+
+    get disabled() { return this.hasAttribute("disabled"); }
+    set disabled(v) { if (v) this.setAttribute("disabled", ""); else this.removeAttribute("disabled"); }
+
+    _commit(v) {
+        if (this.disabled) return;
         this.setAttribute("value", v);
-        this.dispatchEvent(new CustomEvent("change", { detail: v, bubbles: true, composed: true }));
+        this.dispatchEvent(new CustomEvent("sac:change", {
+            detail: { value: v }, bubbles: true, composed: false,
+        }));
     }
 
     render() {
+        this.setAttribute("role", "radiogroup");
         this.shadowRoot.innerHTML = `
             <style>
                 :host {
@@ -77,24 +91,67 @@ class SacSegmentedControl extends HTMLElement {
                     background: var(--accent-fill) !important;
                     color: var(--on-accent) !important;
                 }
+                ::slotted(button:focus-visible) {
+                    outline: 2px solid var(--accent) !important;
+                    outline-offset: 1px;
+                }
+                @media (prefers-reduced-motion: reduce) {
+                    ::slotted(button) { transition: none !important; }
+                }
+                :host([disabled]) { opacity: .5; pointer-events: none; }
             </style>
             <slot></slot>
         `;
         this.applyActive();
     }
 
+    _buttons() {
+        return Array.from(this.querySelectorAll("button[data-value]"));
+    }
+
     applyActive() {
         const value = this.value;
-        for (const btn of this.querySelectorAll("button[data-value]")) {
-            btn.classList.toggle("active", btn.dataset.value === value);
-        }
+        const btns = this._buttons();
+        // A radiogroup to assistive tech: each segment is a radio carrying its
+        // checked state (not colour alone), and only the active one is a tab
+        // stop — arrows move between them (roving tabindex).
+        const anyChecked = btns.some((b) => b.dataset.value === value);
+        const off = this.disabled;
+        btns.forEach((btn, i) => {
+            const on = btn.dataset.value === value;
+            btn.classList.toggle("active", on);
+            btn.setAttribute("role", "radio");
+            btn.setAttribute("aria-checked", on ? "true" : "false");
+            if (off) btn.setAttribute("aria-disabled", "true");
+            else     btn.removeAttribute("aria-disabled");
+            // Disabled: nothing is a tab stop; otherwise the roving pattern.
+            btn.tabIndex = off ? -1 : (on || (!anyChecked && i === 0) ? 0 : -1);
+        });
     }
 
     attach() {
         this.addEventListener("click", (e) => {
             const btn = e.target.closest("button[data-value]");
             if (!btn) return;
-            this.value = btn.dataset.value;
+            this._commit(btn.dataset.value);
+        });
+        this.addEventListener("keydown", (e) => {
+            const btns = this._buttons();
+            if (!btns.length) return;
+            let idx = btns.findIndex((b) => b.dataset.value === this.value);
+            if (idx < 0) idx = 0;
+            let next = null;
+            switch (e.key) {
+                case "ArrowRight": case "ArrowDown": next = (idx + 1) % btns.length; break;
+                case "ArrowLeft":  case "ArrowUp":   next = (idx - 1 + btns.length) % btns.length; break;
+                case "Home": next = 0; break;
+                case "End":  next = btns.length - 1; break;
+                default: return;
+            }
+            e.preventDefault();
+            const btn = btns[next];
+            this._commit(btn.dataset.value);   // radio pattern: moving selects
+            btn.focus();
         });
     }
 }

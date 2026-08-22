@@ -40,11 +40,11 @@
  *
  * Properties:
  *   position — get/set, normalized to one decimal ("34.2%"). Setting it does
- *              NOT fire sac:split-change (the caller already knows); user
+ *              NOT fire sac:resize (the caller already knows); user
  *              interaction does.
  *
  * Events:
- *   sac:split-change — detail { position } (the percent string), bubbles +
+ *   sac:resize — detail { position } (the percent string), bubbles +
  *              composed. Fired live during a drag, on every keyboard move, on
  *              a double-click reset, and when a container resize forces the
  *              position to change — but only when the value actually changed.
@@ -91,7 +91,7 @@
  *   </div>
  *
  *   // Persist it — the attribute is already the truth:
- *   split.addEventListener("sac:split-change", e => localStorage.setItem("sidebar", e.detail.position));
+ *   split.addEventListener("sac:resize", e => localStorage.setItem("sidebar", e.detail.position));
  *   split.position = localStorage.getItem("sidebar") || "20%";
  */
 (function () {
@@ -234,7 +234,7 @@ class SacSplit extends HTMLElement {
         this._syncAria(p, lo, hi);
 
         if (changed && emit) {
-            this.dispatchEvent(new CustomEvent("sac:split-change", {
+            this.dispatchEvent(new CustomEvent("sac:resize", {
                 detail:   { position: text },
                 bubbles:  true,
                 composed: true,

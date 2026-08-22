@@ -32,7 +32,7 @@
  *   focus(options) — focuses the SV thumb (the picker's primary control).
  *
  * Events:
- *   sac:color-change — detail { value }, bubbles + composed. Fired on USER
+ *   sac:change — detail { value }, bubbles + composed. Fired on USER
  *           changes only (drag, arrow key, valid typing), and only when the
  *           resulting hex actually differs from the last one — a drag that
  *           moves two pixels inside the same color stays quiet.
@@ -196,10 +196,10 @@
             const hex = this._reflect();
             this._syncAll();
             if (hex === before) return;
-            this.dispatchEvent(new CustomEvent("sac:color-change", {
+            this.dispatchEvent(new CustomEvent("sac:change", {
                 detail:   { value: hex },
                 bubbles:  true,
-                composed: true,
+                composed: false,   // native change semantics (value control)
             }));
         }
 

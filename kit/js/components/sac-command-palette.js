@@ -224,12 +224,19 @@
                 for (const route of router.routes()) {
                     if (!route || !route.label) continue;
                     const hash = route.hash;
+                    // A "route" can be a real hash destination OR an external
+                    // link the nav panel also lists (Download, Source). Running
+                    // an absolute URL through navigate() would only mangle the
+                    // hash and bounce home — open it as a link instead.
+                    const isExternal = /^[a-z][a-z0-9+.-]*:/i.test(hash) && !hash.startsWith("#");
                     entries.push({
                         group: t("palette.group-views", "Views"),
                         label: String(route.label),
                         icon:  route.icon || null,
                         hotkey: null,
-                        run:   () => router.navigate(hash),
+                        run:   isExternal
+                            ? () => window.open(hash, "_blank", "noopener")
+                            : () => router.navigate(hash),
                     });
                 }
             }

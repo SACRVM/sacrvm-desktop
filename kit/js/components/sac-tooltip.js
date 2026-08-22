@@ -87,6 +87,9 @@ class SacTooltip extends HTMLElement {
         this._sync();
     }
 
+    get disabled() { return this.hasAttribute("disabled"); }
+    set disabled(v) { if (v) this.setAttribute("disabled", ""); else this.removeAttribute("disabled"); }
+
     /** Imperative API — same effect as the pointer/focus triggers. */
     show() {
         if (this.hasAttribute("disabled") || !this._text()) return;

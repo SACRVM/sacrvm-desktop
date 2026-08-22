@@ -30,10 +30,10 @@
  *             (z-index walk over all sac-windows, base 10000),
  *             minimize(), maximize(), restore()
  *             — restore() returns to the normal rect from either state.
- * Events:     open / close — detail { window }. (Legacy names, unprefixed
- *             and non-bubbling; the launcher overlay consumes them.)
- *             sac:window-minimize / sac:window-maximize / sac:window-restore
- *             — bubbling + composed, detail { window }.
+ * Events:     sac:open / sac:close — detail { window }.
+ *             sac:minimize / sac:maximize / sac:restore — detail { window }.
+ *             All bubble + composed; the restore event covers the return from
+ *             either minimized or maximized.
  *
  * Geometry:   leaving the normal state saves the inline rect (top/left/width/
  *             height); coming back re-applies it and clamps it, so a viewport
@@ -121,18 +121,30 @@ class SacWindow extends HTMLElement {
             return;
         }
 
-        if (this.shadowRoot.innerHTML !== '') this.applyAttributes();
+        if (this.shadowRoot.innerHTML === '') return;
+
+        // Geometry attributes are LIVE, not write-once: applyAttributes() only
+        // FILLS an empty inline style (so it never fights a drag/resize), which
+        // means it silently ignores a later setAttribute('left', …). An explicit
+        // attribute change is a reposition request — apply it straight to the
+        // inline style, but only in the normal state (min/max own the geometry).
+        if (name === 'width' || name === 'height' || name === 'top' || name === 'left') {
+            if (this._windowState === 'normal') this.style[name] = newValue || '';
+            return;
+        }
+
+        this.applyAttributes();   // title
     }
 
     open() {
         this.setAttribute('open', '');
         this.bringToFront();
-        this.dispatchEvent(new CustomEvent('open', { detail: { window: this } }));
+        this.dispatchEvent(new CustomEvent('sac:open', { detail: { window: this }, bubbles: true, composed: true }));
     }
 
     close() {
         this.removeAttribute('open');
-        this.dispatchEvent(new CustomEvent('close', { detail: { window: this } }));
+        this.dispatchEvent(new CustomEvent('sac:close', { detail: { window: this }, bubbles: true, composed: true }));
     }
 
     toggle() {
@@ -495,7 +507,10 @@ class SacWindow extends HTMLElement {
         } else if (current === 'maximized') {
             // Both maximized -> normal and maximized -> minimized land back
             // on the saved rect first (the viewport may have shrunk since).
-            this._restoreRect();
+            // But minimizing still owes a restore later, so KEEP the saved rect
+            // in that case — consuming it here teleports the window to its
+            // attribute defaults when it is finally un-minimized.
+            this._restoreRect(next !== 'minimized');
             this._clampToViewport();
         }
 
@@ -510,9 +525,9 @@ class SacWindow extends HTMLElement {
 
         this._updateControls();
 
-        const eventName = next === 'minimized' ? 'sac:window-minimize'
-            : next === 'maximized' ? 'sac:window-maximize'
-                : 'sac:window-restore';
+        const eventName = next === 'minimized' ? 'sac:minimize'
+            : next === 'maximized' ? 'sac:maximize'
+                : 'sac:restore';
         this.dispatchEvent(new CustomEvent(eventName, {
             bubbles: true,
             composed: true,
@@ -537,9 +552,11 @@ class SacWindow extends HTMLElement {
         };
     }
 
-    _restoreRect() {
+    _restoreRect(consume = true) {
         const rect = this._normalRect;
-        this._normalRect = null;
+        // Keep the saved rect when a caller still owes a restore (maximized ->
+        // minimized: the un-minimize back to normal needs it).
+        if (consume) this._normalRect = null;
         this.style.top = rect ? rect.top : '';
         this.style.left = rect ? rect.left : '';
         this.style.width = rect ? rect.width : '';

@@ -18,6 +18,7 @@
  * so they can re-fetch without re-parsing the URL themselves.
  */
 (function () {
+    if (!window.sac) { console.warn("[sac.scope] globals.js must load first — scope unavailable."); return; }
     let prefix = "scope";
 
     function pattern() {

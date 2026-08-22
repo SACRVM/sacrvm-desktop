@@ -22,7 +22,7 @@
  *   expanded    — presence = start expanded / currently expanded
  *
  * Events:
- *   sac:collapse-toggle — detail { expanded: boolean }, bubbles + composed.
+ *   sac:toggle — detail { expanded: boolean }, bubbles + composed.
  *
  * Imperative API:
  *   .expanded — get/set, reflects the attribute
@@ -88,7 +88,7 @@ class SacCollapsible extends HTMLElement {
 
     toggle() {
         this.expanded = !this.expanded;
-        this.dispatchEvent(new CustomEvent("sac:collapse-toggle", {
+        this.dispatchEvent(new CustomEvent("sac:toggle", {
             detail:   { expanded: this.expanded },
             bubbles:  true,
             composed: true,

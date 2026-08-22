@@ -6,11 +6,12 @@
     <title>My Dialog App</title>
 
     <!-- The harness: your app alone, no desktop, F5 to develop.
-         An app does NOT vendor the kit — its host provides it. Here the host
-         is this page, so it borrows the kit from the appkit's own site. Swap
-         this for a local path if you keep a copy. -->
-    <link rel="stylesheet" href="https://sacrvm.github.io/sacrvm-appkit/kit/css/ui.css">
-    <script defer src="https://sacrvm.github.io/sacrvm-appkit/kit/js/all.js"></script>
+         Vendored and autark: your app repo keeps its OWN copy of kit/ (the
+         primary model) — no CDN, works fully offline, and you upgrade when you
+         choose. When a real desktop hosts you instead, IT provides the kit and
+         you drop these two lines. -->
+    <link rel="stylesheet" href="kit/css/ui.css">
+    <script defer src="kit/js/all.js"></script>
 
     <script defer>
         // The app is injected AFTER the kit — exactly what a desktop does

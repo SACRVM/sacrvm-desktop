@@ -19,6 +19,7 @@
  * any scoped workspace (see scope.js).
  */
 (function () {
+    if (!window.sac) { console.warn("[sac.router] globals.js must load first — router unavailable."); return; }
     const routes = new Map();    // "#/notes" → { tag, label, icon }
     let rootElement = null;
 

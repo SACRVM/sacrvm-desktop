@@ -22,6 +22,18 @@
  *                                             // "wide" (2 columns) | "large" (2 columns
  *                                             // × 2 rows); unknown values fall back to
  *                                             // medium silently
+ *       tiles: [                              // optional — MULTIPLE launcher tiles for
+ *           { id: "today",                    // one app (complex apps deploy several
+ *             name: "Today",                  // entry points into a desktop). When set,
+ *             icon: "clock",                  // these REPLACE the app's default tile.
+ *             description: "…",               // Each entry may override name/icon/
+ *             route: "today",                 // description/badge/tile/accent and adds:
+ *             accent: "#e59500" },            //   route  — views: opens "#/<id>/<route>"
+ *           …                                 //   params — windows: handed to open()
+ *       ],                                    //   accent — colors the tile AND the app
+ *                                             //            opened through it (its --accent
+ *                                             //            seed — the Windows-Phone move:
+ *                                             //            tile color = app highlight)
  *       kind:        "window",                // "window" | "view" | "page"
  *       // kind:"window" and kind:"view":
  *       tag:         "app-color-bucket",      // the app's custom element
@@ -76,9 +88,14 @@
  *                        "sac:apps-changed" on document.
  *   list()               → array of manifest copies, registration order
  *   get(id)              → manifest copy or null
- *   open(id, params?)    → Promise<HTMLElement> resolving to the app element.
+ *   open(id, params?, opts?) → Promise<HTMLElement> resolving to the app
+ *                        element.
  *                        params: URLSearchParams | object | string, handed to
- *                        the app via context.params. kind:"page" navigates
+ *                        the app via context.params.
+ *                        opts { route, accent }: what a launcher tile carries —
+ *                        route opens a view at "#/<id>/<route>", accent seeds
+ *                        the app's --accent (tile color = app highlight).
+ *                        kind:"page" navigates
  *                        (params appended) and the promise never resolves.
  *                        kind:"window" injects src once (keyed by src), awaits
  *                        customElements.whenDefined(tag) and shows the app in
@@ -156,12 +173,15 @@
  *   }
  *
  * Events:
- *   sac:apps-changed (on document, bubbles) — detail { id, type } with type
- *   "register" | "remove"; lets registry-driven UI (e.g. <sac-launcher>)
- *   refresh when apps register after it connected.
+ *   sac:apps-changed (on document, bubbles) — detail { id, type }. The registry
+ *   types are "register" and "remove" (what registry-driven UI like
+ *   <sac-launcher> refreshes on). The stage also emits "view" (id = the app now
+ *   on stage) and "home" (id = null, back at "#/"), so a host can track which
+ *   view is showing.
  */
 (function () {
-    if (!window.sac || sac.apps) return;
+    if (!window.sac) { console.warn("[sac.apps] globals.js must load first — app runtime unavailable."); return; }
+    if (sac.apps) return;   // idempotent
 
     const registry = new Map();   // id  → manifest (internal copy)
     const windows  = new Map();   // id  → { win, el }
@@ -191,9 +211,22 @@
             window.location.pathname + window.location.search + hash);
     }
 
-    /** "#/styleguide/components" → { id: "styleguide", route: "components" } */
+    /** Scope composition (same rule as sac.router). When scope.js is loaded,
+     *  a root-scope hash the runtime builds (`#/<id>/…`) is rewritten into the
+     *  active workspace before it is WRITTEN, and a workspace prefix is stripped
+     *  before an id is READ — so a view app is reachable, and stays, inside a
+     *  scoped workspace. Without scope.js both pass through unchanged. */
+    function scopedHash(hash) {
+        return (window.sac && sac.scope && sac.scope.hashFor) ? sac.scope.hashFor(hash) : hash;
+    }
+    function rootHash(hash) {
+        return (window.sac && sac.scope && sac.scope.stripPrefix) ? sac.scope.stripPrefix(hash) : hash;
+    }
+
+    /** "#/styleguide/components" → { id: "styleguide", route: "components" }.
+     *  A "#/scope/SLUG/…" workspace prefix is stripped first. */
     function parseHash() {
-        const m = /^#\/([^/?]+)(?:\/([^?]*))?/.exec(window.location.hash || "");
+        const m = /^#\/([^/?]+)(?:\/([^?]*))?/.exec(rootHash(window.location.hash || ""));
         if (!m) return null;
         return {
             id:    decodeURIComponent(m[1]),
@@ -331,7 +364,7 @@
         // Rail links and anchors go through this.
         ctx.href = (route) => {
             const clean = route == null ? "" : String(route).replace(/^\/+|\/+$/g, "");
-            return `#/${id}${clean ? "/" + clean : ""}`;
+            return scopedHash(`#/${id}${clean ? "/" + clean : ""}`);
         };
 
         ctx.deepLink = {
@@ -396,6 +429,27 @@
         return manifest.name || manifest.title || manifest.id;
     }
 
+    /** whenDefined that gives up: a script that loads fine but defines a
+     *  DIFFERENT tag than the manifest names would otherwise hang open()
+     *  forever — no toast, and the cached pending promise poisons every later
+     *  open of that app. Reject instead, and clear the load cache so a
+     *  corrected manifest can retry. */
+    function whenDefinedTimeout(tag, src, ms = 8000) {
+        return new Promise((resolve, reject) => {
+            let settled = false;
+            customElements.whenDefined(tag).then(() => {
+                if (settled) return;
+                settled = true; resolve();
+            });
+            setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                injected.delete(src);
+                reject(new Error(`"${tag}" was never defined after loading ${src} — does the script define this exact tag?`));
+            }, ms);
+        });
+    }
+
     function ensureDefined(manifest) {
         if (customElements.get(manifest.tag)) return Promise.resolve();
         if (!injected.has(manifest.src)) {
@@ -411,7 +465,7 @@
             }));
         }
         return injected.get(manifest.src)
-            .then(() => customElements.whenDefined(manifest.tag));
+            .then(() => whenDefinedTimeout(manifest.tag, manifest.src));
     }
 
     /* ------------------------------------------------------------ views -- */
@@ -467,9 +521,15 @@
     }
 
     /** @returns Promise<HTMLElement> — the created element, on stage. */
-    function openView(manifest, route, params) {
+    function openView(manifest, route, params, accent) {
         const id = manifest.id;
         if (views.has(id)) {
+            // Re-seed on every reopen, not only when a tile passed one — else
+            // a tile accent latches forever and an accent-less reopen keeps the
+            // stale colour instead of the app's own default.
+            const seed = accent || manifest.accent;
+            if (seed) views.get(id).el.style.setProperty("--accent", seed);
+            else      views.get(id).el.style.removeProperty("--accent");
             showView(id, route);
             return Promise.resolve(views.get(id).el);
         }
@@ -478,13 +538,13 @@
         // hashchange AND popstate. Without this the second call sails past
         // the views.has() check and builds a second, orphaned element.
         if (!viewOpening.has(id)) {
-            viewOpening.set(id, createView(manifest, route, params)
+            viewOpening.set(id, createView(manifest, route, params, accent)
                 .finally(() => viewOpening.delete(id)));
         }
         return viewOpening.get(id).then((el) => { showView(id, route); return el; });
     }
 
-    async function createView(manifest, route, params) {
+    async function createView(manifest, route, params, accent) {
         const id = manifest.id;
         try {
             await ensureDefined(manifest);
@@ -508,7 +568,9 @@
         el.className = "sac-app-view";
         el.hidden = true;              // showView() decides when it appears
         // Per-app accent: one seed on the view, everything derived follows.
-        if (manifest.accent) el.style.setProperty("--accent", manifest.accent);
+        // A tile's own accent (opened via a colored launcher tile) wins.
+        const seed = accent || manifest.accent;
+        if (seed) el.style.setProperty("--accent", seed);
 
         // The record exists BEFORE mount(): context.route reads through it.
         // showView() does the mounting, once it is visible.
@@ -536,7 +598,8 @@
 
     /* ------------------------------------------------------------- open --- */
 
-    async function doOpen(id, params) {
+    async function doOpen(id, params, opts) {
+        const o = opts || {};
         const manifest = registry.get(id);
         if (!manifest) {
             console.warn(`[sac.apps] unknown app: ${id}`);
@@ -554,14 +617,15 @@
         if (manifest.kind === "view") {
             // The address IS the open call, so a plain link does what a click
             // does. pushState (not replace) — back returns where you came from.
+            // A tile's route (opts.route) targets a spot inside the app.
             const known = views.get(id);
-            const route = known ? known.route : "";
-            const target = `#/${id}${route ? "/" + route : ""}`;
+            const route = o.route != null ? String(o.route) : (known ? known.route : "");
+            const target = scopedHash(`#/${id}${route ? "/" + route : ""}`);
             if (window.location.hash !== target) {
                 window.history.pushState({}, document.title,
                     window.location.pathname + window.location.search + target);
             }
-            return openView(manifest, route, params);
+            return openView(manifest, route, params, o.accent);
         }
 
         // kind:"window" (the default — legacy specs carry no kind field).
@@ -569,6 +633,11 @@
         if (existing && existing.win.isConnected) {
             // Re-opening an app the user minimized must show the app, not the
             // collapsed title bar. A maximized window keeps its state.
+            // Re-seed on every reopen (see openView) so a tile accent does not
+            // latch past the open that carried it.
+            const seed = o.accent || manifest.accent;
+            if (seed) existing.win.style.setProperty("--accent", seed);
+            else      existing.win.style.removeProperty("--accent");
             if (existing.win.hasAttribute("minimized")) existing.win.restore?.();
             existing.win.open();
             return existing.el;
@@ -600,7 +669,9 @@
         win.setAttribute("top",  `${top}px`);
 
         // Per-app accent: one seed on the window, everything derived follows.
-        if (manifest.accent) win.style.setProperty("--accent", manifest.accent);
+        // A tile's own accent (opened via a colored launcher tile) wins.
+        const seed = o.accent || manifest.accent;
+        if (seed) win.style.setProperty("--accent", seed);
 
         // Window chrome, the app's choice: controls subset + fixed size.
         if (manifest.controls != null) win.setAttribute("controls", String(manifest.controls));
@@ -626,10 +697,10 @@
         return el;
     }
 
-    function open(id, params) {
+    function open(id, params, opts) {
         // Collapse rapid double-opens into one window creation.
         if (opening.has(id)) return opening.get(id);
-        const p = doOpen(id, params);
+        const p = doOpen(id, params, opts);
         opening.set(id, p);
         p.finally(() => opening.delete(id)).catch(() => {});
         return p;
@@ -640,7 +711,7 @@
     function close(id) {
         const manifest = registry.get(id);
         if (manifest && manifest.kind === "view") {
-            if (activeId === id) { replaceHash("#/"); goHome(); }
+            if (activeId === id) { replaceHash(scopedHash("#/")); goHome(); }
             return;
         }
         const rec = windows.get(id);
@@ -666,7 +737,7 @@
             unmountEl(id, view.el);
             view.el.remove();
             views.delete(id);
-            if (activeId === id) { replaceHash("#/"); goHome(); }
+            if (activeId === id) { replaceHash(scopedHash("#/")); goHome(); }
         }
         emitChanged(id, "remove");
     }
@@ -773,12 +844,28 @@
             inited = true;
             // Tiles: [data-app="<id>"] opens that app. Delegated, so tiles
             // rendered after init() work too. [data-overlay] is the legacy
-            // spelling — same behavior.
+            // spelling — same behavior. A hand-written tile is a full tile:
+            // its --accent (or data-accent) seeds the app it opens — tile
+            // color = app highlight — and data-route targets a view route.
             document.addEventListener("click", (e) => {
                 const tile = e.target.closest("[data-app], [data-overlay]");
                 if (!tile) return;
+                // A modified click on an anchor tile is the user asking for a
+                // new tab / window / download — let the browser honor it
+                // instead of hijacking it into same-tab navigation.
+                if (e.defaultPrevented || e.button !== 0 ||
+                    e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                 e.preventDefault();
-                open(tile.dataset.app || tile.dataset.overlay)
+                const accent = tile.dataset.accent
+                    || (tile.style && tile.style.getPropertyValue("--accent").trim())
+                    || undefined;
+                // A tile is an entry point: with no data-route it opens the app
+                // at its ROOT (route ""), matching the href it advertises —
+                // never the sub-route the view happened to be left on. (A
+                // programmatic open(id) with no route still resumes; only this
+                // explicit tile click is pinned to the root.)
+                open(tile.dataset.app || tile.dataset.overlay, undefined,
+                     { accent, route: tile.dataset.route || "" })
                     .catch(() => {}); // already logged/toasted by open()
             });
         }

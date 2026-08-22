@@ -1,13 +1,14 @@
 /**
  * SACRVM APPKIT — markdown help loader (ES module).
- * Requires `marked` on window (kit/js/vendor/marked.min.js, classic script).
- * If DOMPurify (kit/js/vendor/purify.min.js) is present, the rendered HTML
- * is sanitized before injection — recommended whenever the markdown source
- * is not fully trusted.
+ * Requires BOTH `marked` (kit/js/vendor/marked.min.js) and DOMPurify
+ * (kit/js/vendor/purify.min.js) on window. A help file is a fetched, often
+ * untrusted document, so sanitising is mandatory — a missing DOMPurify is a
+ * hard error, never a silent pass-through that injects raw markdown output.
  *
  * Loads a markdown file, renders it to HTML, and injects it into the target
- * element. Internal `.md` links load recursively in place; `http(s)` links
- * open in a new tab.
+ * element. Internal `.md` links load recursively in place, resolved against
+ * the file they appear in (not the hosting page); `http(s)` links open in a
+ * new tab.
  *
  * @param {string} filename          Path to the markdown file.
  * @param {string} targetElementId   ID of the element to render into
@@ -27,26 +28,33 @@ export async function loadHelp(filename, targetElementId = 'help-content') {
     }
 
     try {
-        const response = await fetch(filename);
+        if (!window.marked) {
+            throw new Error("marked.js not found on window (kit/js/vendor/marked.min.js).");
+        }
+        if (!window.DOMPurify) {
+            throw new Error("DOMPurify not found on window (kit/js/vendor/purify.min.js) — refusing to inject unsanitised markdown.");
+        }
+
+        // Resolve the file to an absolute URL so recursive .md links can be
+        // resolved against IT, not against the hosting page's baseURI.
+        const fileUrl = new URL(filename, document.baseURI).href;
+        const response = await fetch(fileUrl);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
         const text = await response.text();
 
-        if (!window.marked) {
-            throw new Error("marked.js library not found on window object.");
-        }
-
-        let html = window.marked.parse(text);
-        if (window.DOMPurify) html = window.DOMPurify.sanitize(html);
+        const html = window.DOMPurify.sanitize(window.marked.parse(text));
         contentDiv.innerHTML = html;
 
         // Link interception
         contentDiv.querySelectorAll('a').forEach(link => {
             const href = link.getAttribute('href');
             if (href && href.endsWith('.md')) {
+                // A relative .md link is relative to the file it lives in.
+                const nextUrl = new URL(href, fileUrl).href;
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
-                    loadHelp(href, targetElementId);
+                    loadHelp(nextUrl, targetElementId);
                 });
             } else if (href && href.startsWith('http')) {
                 link.target = "_blank";

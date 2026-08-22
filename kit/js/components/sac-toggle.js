@@ -1,22 +1,25 @@
 /**
  * <sac-toggle label="Pinned" checked>
  *
- * Custom switch. Fires `change` events with `e.detail` = boolean
- * (bubbles, composed).
+ * Custom switch. Fires `sac:change` with `e.detail = { value: boolean }`
+ * (bubbles, NOT composed — like native change). Programmatic `.checked = …`
+ * is silent.
  *
  * The checked state is styled purely via :host([checked]) — attribute
  * changes never re-render the shadow DOM (re-rendering would kill the
  * knob's slide transition; same in-place rule as sac-slider).
  *
  * Attributes:
- *   label   — text to the left of the switch.
- *   checked — presence = on.
+ *   label    — text to the left of the switch.
+ *   checked  — presence = on.
+ *   disabled — presence = inert + dimmed, out of the tab order, fires nothing.
  *
  * Properties:
- *   checked — get/set, reflects the attribute.
+ *   checked  — get/set, reflects the attribute.
+ *   disabled — get/set, reflects the attribute.
  */
 class SacToggle extends HTMLElement {
-    static get observedAttributes() { return ["label", "checked"]; }
+    static get observedAttributes() { return ["label", "checked", "disabled"]; }
 
     constructor() {
         super();
@@ -33,11 +36,29 @@ class SacToggle extends HTMLElement {
     attributeChangedCallback(name) {
         if (!this.shadowRoot.firstChild) return;
         if (name === "label") {
+            const label = this.getAttribute("label") || "";
             const el = this.shadowRoot.querySelector(".label");
-            if (el) el.textContent = this.getAttribute("label") || "";
+            if (el) el.textContent = label;
+            this.setAttribute("aria-label", label);
         }
-        // checked: handled entirely by :host([checked]) CSS — nothing to do.
+        // checked's look is pure :host([checked]) CSS; only the a11y state
+        // needs syncing so a screen reader hears the switch flip.
+        if (name === "checked") {
+            this.setAttribute("aria-checked", this.checked ? "true" : "false");
+        }
+        if (name === "disabled") this._syncDisabled();
     }
+
+    /** Disabled = out of the tab order, announced, and inert (CSS blocks the
+     *  pointer; _toggle() blocks the keyboard). */
+    _syncDisabled() {
+        const off = this.disabled;
+        this.setAttribute("aria-disabled", off ? "true" : "false");
+        this.setAttribute("tabindex", off ? "-1" : "0");
+    }
+
+    get disabled() { return this.hasAttribute("disabled"); }
+    set disabled(v) { if (v) this.setAttribute("disabled", ""); else this.removeAttribute("disabled"); }
 
     get checked() { return this.hasAttribute("checked"); }
     set checked(v) {
@@ -47,6 +68,14 @@ class SacToggle extends HTMLElement {
 
     render() {
         const label = this.getAttribute("label") || "";
+        // A real switch to assistive tech and the keyboard: role + state +
+        // a tab stop + an accessible name. Author-set tabindex is respected.
+        this.setAttribute("role", "switch");
+        this.setAttribute("aria-checked", this.checked ? "true" : "false");
+        if (!this.hasAttribute("tabindex")) this.setAttribute("tabindex", "0");
+        if (label) this.setAttribute("aria-label", label);
+        this._syncDisabled();
+        const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
         this.shadowRoot.innerHTML = `
             <style>
                 :host {
@@ -58,6 +87,12 @@ class SacToggle extends HTMLElement {
                     color: var(--text);
                     font-size: 0.875rem;
                 }
+                :host(:focus-visible) {
+                    outline: 2px solid var(--accent);
+                    outline-offset: 2px;
+                    border-radius: var(--radius-s);
+                }
+                :host([disabled]) { opacity: .5; pointer-events: none; }
                 .label { user-select: none; }
                 .switch {
                     position: relative;
@@ -78,20 +113,34 @@ class SacToggle extends HTMLElement {
                 }
                 :host([checked]) .switch { background: var(--accent); }
                 :host([checked]) .knob   { transform: translateX(14px); background: var(--on-accent); }
+                @media (prefers-reduced-motion: reduce) {
+                    .switch, .knob { transition: none; }
+                }
             </style>
-            <span class="label">${label}</span>
+            <span class="label">${esc(label)}</span>
             <div class="switch"><div class="knob"></div></div>
         `;
     }
 
+    _toggle() {
+        if (this.disabled) return;
+        this.checked = !this.checked;
+        // Value control: sac:change with { value }, bubbles but NOT composed —
+        // it mirrors native change/input and stays inside the consumer's tree.
+        this.dispatchEvent(new CustomEvent("sac:change", {
+            detail: { value: this.checked },
+            bubbles: true,
+            composed: false
+        }));
+    }
+
     attach() {
-        this.addEventListener("click", () => {
-            this.checked = !this.checked;
-            this.dispatchEvent(new CustomEvent("change", {
-                detail: this.checked,
-                bubbles: true,
-                composed: true
-            }));
+        this.addEventListener("click", () => this._toggle());
+        this.addEventListener("keydown", (e) => {
+            if (e.key === " " || e.key === "Enter") {
+                e.preventDefault();   // Space would otherwise scroll the page
+                this._toggle();
+            }
         });
     }
 }

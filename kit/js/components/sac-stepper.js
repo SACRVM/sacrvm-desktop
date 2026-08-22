@@ -396,7 +396,7 @@ class SacStepper extends HTMLElement {
             this.dispatchEvent(new CustomEvent("sac:change", {
                 detail: { value: clamped },
                 bubbles: true,
-                composed: true,
+                composed: false,   // native change semantics (value control)
             }));
         }
     }

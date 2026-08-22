@@ -76,10 +76,15 @@ class SacToastStack extends HTMLElement {
 
         const card = document.createElement("div");
         card.className = `toast ${k}`;
+        // The shared region is polite; an error/warning should interrupt.
+        // role="alert" is assertive, role="status" polite — set per kind so
+        // urgency rides in semantics, not only in the icon's colour.
+        card.setAttribute("role", (k === "error" || k === "warn") ? "alert" : "status");
 
         const icon = document.createElement("sac-icon");
         icon.className = "icon";
         icon.setAttribute("name", SacToastStack.KINDS[k]);
+        icon.setAttribute("aria-hidden", "true");   // colour cue, not content
         card.appendChild(icon);
 
         const content = document.createElement("div");

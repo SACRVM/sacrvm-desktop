@@ -14,6 +14,7 @@
  * One merged set: content, system, status, navigation and tool icons.
  */
 (function () {
+    if (!window.sac) { console.warn("[sac.icons] globals.js must load first — nothing registered."); return; }
     const registry = new Map();
     const filled = new Set(["discord", "twitter"]);
 

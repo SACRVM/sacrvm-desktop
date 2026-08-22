@@ -42,7 +42,8 @@
  * tabs of the same origin.
  */
 (function () {
-    if (!window.sac || sac.identity) return;
+    if (!window.sac) { console.warn("[sac.identity] globals.js must load first — identity unavailable."); return; }
+    if (sac.identity) return;   // idempotent
 
     const KEY = "sac.identity/profile";
 

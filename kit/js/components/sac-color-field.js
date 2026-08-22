@@ -14,7 +14,7 @@
  *   <sac-color-field label="Accent" value="#3b82f6"></sac-color-field>
  *   <sac-color-field label="Glow" value="#f9731688" alpha></sac-color-field>
  *
- *   field.addEventListener("sac:color-change", e => paint(e.detail.value));
+ *   field.addEventListener("sac:change", e => paint(e.detail.value));
  *   field.value = "#22c55e";        // programmatic — updates the UI, fires nothing
  *
  * Attributes:
@@ -34,7 +34,7 @@
  *           event is fired (events mean "the user did this").
  *
  * Events:
- *   sac:color-change — detail { value } — the normalized hex, on USER changes
+ *   sac:change — detail { value } — the normalized hex, on USER changes
  *                      only: a committed hex entry, or any picker interaction.
  *                      Bubbles + composed. The picker's own event is stopped at
  *                      the boundary, so apps see exactly one.
@@ -116,6 +116,9 @@ class SacColorField extends HTMLElement {
     get value() { return this._format(); }
     set value(v) { this.setAttribute("value", v == null ? "" : String(v)); }
 
+    get disabled() { return this.hasAttribute("disabled"); }
+    set disabled(v) { if (v) this.setAttribute("disabled", ""); else this.removeAttribute("disabled"); }
+
     /* ------------------------------------------------------------ color math */
 
     /** The shared library, or null when lib/color.js was not loaded. */
@@ -182,10 +185,10 @@ class SacColorField extends HTMLElement {
         this._reflect();
         this._syncUI();
         if (fire && after !== before) {
-            this.dispatchEvent(new CustomEvent("sac:color-change", {
+            this.dispatchEvent(new CustomEvent("sac:change", {
                 detail: { value: after },
                 bubbles: true,
-                composed: true,
+                composed: false,   // native change semantics (value control)
             }));
         }
     }
@@ -505,7 +508,7 @@ class SacColorField extends HTMLElement {
         pop.setAttribute("aria-label", t("color-field.color-picker", "Color picker"));
 
         const picker = document.createElement("sac-color-picker");
-        picker.addEventListener("sac:color-change", (e) => {
+        picker.addEventListener("sac:change", (e) => {
             e.stopPropagation();                  // apps listen to the FIELD, not the picker
             const parsed = this._parse(e.detail && e.detail.value);
             if (!parsed) return;

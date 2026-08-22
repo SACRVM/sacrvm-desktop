@@ -51,7 +51,8 @@
  * kit's theme. Same app file, same code path, no shell required.
  */
 (function () {
-    if (!window.sac || sac.app) return;
+    if (!window.sac) { console.warn("[sac.app] globals.js must load first — sac.app unavailable."); return; }
+    if (sac.app) return;   // idempotent
 
     /* ------------------------------------------------------------- theme --
        The host owns this on a shell (sac.apps.theme). Standalone, and only

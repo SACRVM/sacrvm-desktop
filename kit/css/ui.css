@@ -139,20 +139,46 @@
    accent scope wherever it runs — on a desktop's stage, in a window, or
    alone in its own page. .sac-app-view and sac-window cover apps that
    implement the contract by hand.
+
+   BUT: a token that flips with the light/dark flag must NOT be redeclared on
+   these per-app scopes, or the scope's dark-direction copy shadows the light
+   override on :root and every app/window renders dark tokens on light ground.
+   So the direction-dependent, accent-INDEPENDENT tokens (--field, --glass*,
+   --panel*, --shadow-*) live on :root ALONE, below. The state-as-text layer
+   is direction-dependent AND accent-dependent, so it stays on the scopes and
+   reads its direction from flag variables (--text-solve + *-pct) instead.
    -------------------------------------------------------------------------- */
+:root {
+    /* Direction-dependent, accent-independent — :root only (see note above);
+       these are the DARK values, the light/auto blocks flip them. Because an
+       app scope never redeclares them, they inherit correctly per theme. */
+    --field:       color-mix(in srgb, var(--sink) 30%, transparent);        /* input/select bg   */
+    --glass:       color-mix(in srgb, var(--glass-hue) 70%, transparent);   /* windows, overlays */
+    --glass-strong:color-mix(in srgb, var(--glass-hue) 88%, transparent);   /* menus, nav ribbon */
+    --panel:       color-mix(in srgb, var(--bg) 95%, var(--lift));      /* sidebars, cards   */
+    --panel-2:     color-mix(in srgb, var(--bg) 90%, var(--lift));      /* elevated panel    */
+    --shadow-1: 0 2px 8px  color-mix(in srgb, var(--sink) 35%, transparent);
+    --shadow-2: 0 8px 24px color-mix(in srgb, var(--sink) 45%, transparent);
+
+    /* State-as-text direction, flag-flipped: dark solves toward --lift, light
+       toward --sink; the per-token percentage flips too (100% = raw seed). The
+       *-text tokens themselves are derived on the accent scopes below. */
+    --text-solve:           var(--lift);
+    --accent-text-pct:       90%;
+    --accent-edit-text-pct:  86%;
+    --accent-warm-text-pct: 100%;
+    --danger-text-pct:       89%;
+    --ok-text-pct:          100%;
+}
 :root,
 .sac-app,
 .sac-app-view,
 sac-window {
-    /* Surfaces */
-    --panel:       color-mix(in srgb, var(--bg) 95%, var(--lift));      /* sidebars, cards   */
-    --panel-2:     color-mix(in srgb, var(--bg) 90%, var(--lift));      /* elevated panel    */
+    /* Surfaces — accent-independent but direction-INdependent (the flipped
+       seed already produces the right value), so these may live on the scopes. */
     --glass-hue:   color-mix(in srgb, var(--surface) 45%, var(--bg));   /* internal carrier  */
-    --glass:       color-mix(in srgb, var(--glass-hue) 70%, transparent);   /* windows, overlays */
-    --glass-strong:color-mix(in srgb, var(--glass-hue) 88%, transparent);   /* menus, nav ribbon */
     --tile:        color-mix(in srgb, var(--surface) 70%, transparent);     /* launcher tiles    */
     --tile-hover:  color-mix(in srgb, var(--surface) 90%, transparent);
-    --field:       color-mix(in srgb, var(--sink) 30%, transparent);        /* input/select bg   */
 
     /* Text — two-step secondary: --text-muted carries real secondary
        information (AA on every plane); --text-dim is strictly tertiary,
@@ -194,18 +220,15 @@ sac-window {
     --on-warm:   color-mix(in srgb, var(--sink) 68%, var(--accent-warm));
     --on-ok:     color-mix(in srgb, var(--sink) 63%, var(--ok));
 
-    /* The same state colors, readable as TEXT on this theme's ground —
-       solved against --surface, the lightest plane in dark. The light block
-       re-solves these toward --sink. */
-    --accent-text:      color-mix(in oklab, var(--accent) 90%, var(--lift));
-    --accent-edit-text: color-mix(in oklab, var(--accent-edit) 86%, var(--lift));
-    --accent-warm-text: var(--accent-warm);   /* passes on dark as-is */
-    --danger-text:      color-mix(in oklab, var(--danger) 89%, var(--lift));
-    --ok-text:          var(--ok);            /* passes on dark as-is */
-
-    /* Elevation */
-    --shadow-1: 0 2px 8px  color-mix(in srgb, var(--sink) 35%, transparent);
-    --shadow-2: 0 8px 24px color-mix(in srgb, var(--sink) 45%, transparent);
+    /* The same state colors, readable as TEXT on this theme's ground. Derived
+       here (so a per-app accent re-solves them), but the direction — mix
+       target and strength — comes from the flag variables on :root, so light
+       and dark both resolve correctly INSIDE an app scope. */
+    --accent-text:      color-mix(in oklab, var(--accent)      var(--accent-text-pct),      var(--text-solve));
+    --accent-edit-text: color-mix(in oklab, var(--accent-edit) var(--accent-edit-text-pct), var(--text-solve));
+    --accent-warm-text: color-mix(in oklab, var(--accent-warm) var(--accent-warm-text-pct), var(--text-solve));
+    --danger-text:      color-mix(in oklab, var(--danger)      var(--danger-text-pct),      var(--text-solve));
+    --ok-text:          color-mix(in oklab, var(--ok)          var(--ok-text-pct),          var(--text-solve));
 
     /* Scrollbar parts (also duplicated inside scrollable Shadow DOM — the
        global rules below do not pierce shadow roots). */
@@ -240,12 +263,14 @@ sac-window {
     --panel:   color-mix(in srgb, var(--bg) 62%, var(--lift));
     --panel-2: color-mix(in srgb, var(--bg) 30%, var(--lift));
 
-    /* State-as-text re-solved for a white worst-case plane. */
-    --accent-text:      color-mix(in oklab, var(--accent) 91%, var(--sink));
-    --accent-edit-text: color-mix(in oklab, var(--accent-edit) 93%, var(--sink));
-    --accent-warm-text: color-mix(in oklab, var(--accent-warm) 81%, var(--sink));
-    --danger-text:      color-mix(in oklab, var(--danger) 91%, var(--sink));
-    --ok-text:          color-mix(in oklab, var(--ok) 75%, var(--sink));
+    /* State-as-text re-solved for a white worst-case plane — flip the shared
+       flag variables, and the *-text tokens on the accent scopes follow. */
+    --text-solve:           var(--sink);
+    --accent-text-pct:       91%;
+    --accent-edit-text-pct:  93%;
+    --accent-warm-text-pct:  81%;
+    --danger-text-pct:       91%;
+    --ok-text-pct:           75%;
 }
 
 /* `data-theme="auto"` follows the OS instead of an explicit choice — same
@@ -268,11 +293,12 @@ sac-window {
         --panel:   color-mix(in srgb, var(--bg) 62%, var(--lift));
         --panel-2: color-mix(in srgb, var(--bg) 30%, var(--lift));
 
-        --accent-text:      color-mix(in oklab, var(--accent) 91%, var(--sink));
-        --accent-edit-text: color-mix(in oklab, var(--accent-edit) 93%, var(--sink));
-        --accent-warm-text: color-mix(in oklab, var(--accent-warm) 81%, var(--sink));
-        --danger-text:      color-mix(in oklab, var(--danger) 91%, var(--sink));
-        --ok-text:          color-mix(in oklab, var(--ok) 75%, var(--sink));
+        --text-solve:           var(--sink);
+        --accent-text-pct:       91%;
+        --accent-edit-text-pct:  93%;
+        --accent-warm-text-pct:  81%;
+        --danger-text-pct:       91%;
+        --ok-text-pct:           75%;
     }
 }
 
@@ -380,17 +406,19 @@ input, textarea, [contenteditable] {
     user-select: text;
 }
 
-/* <select>: dark field + painted chevron. appearance:none kills the native
-   arrow, so we paint our own AS A BACKGROUND IMAGE ONLY — sizing classes may
-   add padding/width but MUST NOT re-declare the `background` shorthand
-   (that wipes the chevron; documented trap, see the style guide). */
+/* <select>: appearance:none kills the native arrow; we paint our own chevron
+   on a thin wrapper. The wrapper is REQUIRED — <select> is a replaced element
+   and can host neither an inline SVG nor a ::after — so a bare <select> shows
+   no arrow. Wrap it:  <span class="select"><select>…</select></span>
+
+   The chevron is an SVG MASK filled with background-color: var(--text-muted),
+   so it follows the theme with ZERO colour literals and needs no light/auto
+   overrides (the token flips on its own). White stroke so it reads as both
+   luminance (CSS mask) and alpha (-webkit-mask). */
 select {
     appearance: none;
     width: 100%;
     background-color: var(--field);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 10px center;
     border: 1px solid var(--border);
     border-radius: var(--radius-m);
     padding: 8px 32px 8px 10px;
@@ -403,8 +431,17 @@ select {
 }
 select:focus { border-color: var(--accent); }
 select option { background-color: var(--panel); color: var(--text); }
-:root[data-theme="light"] select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+.select { position: relative; display: block; }
+.select::after {
+    content: "";
+    position: absolute;
+    top: 50%; right: 12px;
+    width: 12px; height: 12px;
+    transform: translateY(-50%);
+    pointer-events: none;                 /* clicks fall through to the select */
+    background-color: var(--text-muted);  /* the ONE token that colours the arrow */
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat center / contain;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat center / contain;
 }
 
 input[type="checkbox"], input[type="radio"] {
@@ -548,6 +585,17 @@ kbd {
     stroke-width: 2.2;
     stroke-linecap: round;
     stroke-linejoin: round;
+}
+a.nav-icon-btn { text-decoration: none; }
+/* The labeled variant: same height, a pill instead of a circle. A host's
+   signed-in user chip renders with it (sac-nav host tools), and an app can
+   use it for its own labeled ribbon buttons just the same. */
+.nav-icon-btn.labeled {
+    width: auto;
+    padding: 0 12px;
+    gap: 0.4rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
 }
 
 /* --------------------------------------------------------------------------
@@ -939,16 +987,6 @@ kbd {
     box-shadow: none;
     background: var(--tile);
 }
-/* Dashed border = opens as an overlay window, not a page. */
-.tile-window {
-    background: color-mix(in srgb, var(--glass-hue) 60%, transparent);
-    border: 1px dashed var(--border-strong);
-}
-.tile-window:hover {
-    background: color-mix(in srgb, var(--glass-hue) 90%, transparent);
-    border: 1px dashed var(--accent);
-}
-
 .tile-badge {
     position: absolute;
     top: 24px;

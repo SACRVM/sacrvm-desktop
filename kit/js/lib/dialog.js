@@ -28,7 +28,7 @@
  * announce, not ask — so its resolution carries no information.
  */
 (function () {
-    if (!window.sac) return;
+    if (!window.sac) { console.warn("[sac.dialog] globals.js must load first — dialog unavailable."); return; }
 
     sac.dialog = {
         confirm({ title, message, buttons }) {
@@ -47,7 +47,7 @@
                     }
                 }
 
-                dlg.addEventListener("sac-dialog:action", (e) => {
+                dlg.addEventListener("sac:action", (e) => {
                     // Let the fade-out transition run before removal.
                     setTimeout(() => {
                         dlg.remove();

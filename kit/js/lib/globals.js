@@ -47,6 +47,30 @@
             return v === undefined ? fallback : v;
         },
 
+        /* Event naming — one convention across every component:
+         *
+         *   • Every custom event is `sac:`-prefixed. The event name never
+         *     repeats the component name (the event's `target` already says
+         *     which element fired) — so it is `sac:change`, not
+         *     `sac:color-change`; `sac:resize`, not `sac:split-change`.
+         *
+         *   • A DATA-VALUE control (toggle, slider, stepper, segmented-control,
+         *     color-picker/-field, calendar, date-field, chip-input, swatch-grid,
+         *     theme-toggle) fires `sac:change` on user commit — plus `sac:input`
+         *     for live/intermediate updates (slider). detail ALWAYS carries
+         *     `value` (it may carry more, e.g. swatch-grid adds `swatch`).
+         *     These mirror native change/input: they BUBBLE but are NOT
+         *     composed (they stay inside the consumer's tree), and a
+         *     PROGRAMMATIC `.value`/`.checked`/`.theme` set fires nothing —
+         *     only real interaction does.
+         *
+         *   • An ACTION / lifecycle / UI-state event keeps a descriptive verb
+         *     (`sac:select`, `sac:copy`, `sac:open`, `sac:close`, `sac:minimize`,
+         *     `sac:remove`, `sac:toggle`, `sac:resize`, `sac:files`, …) and
+         *     bubbles + composed, so suite-level coordination (command palette,
+         *     toasts, host injection) can hear it across shadow boundaries.
+         */
+
         /* There is deliberately NO toolbar or sidebar projection here. An
          * app is complete: it draws its own chrome — toolbar (the .toolbar
          * recipe) and rail (<sac-sidebar> with the `items` property) — in

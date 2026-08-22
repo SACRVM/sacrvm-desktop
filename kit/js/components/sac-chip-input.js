@@ -8,7 +8,7 @@
  * dropdown of matching suggestions. Tab / Enter / comma commit the
  * highlighted suggestion (or the top match). With [allow-create], an
  * unknown entry offers "Create '<name>'" — choosing it opens a 10-swatch
- * palette picker, emits `chip-create`, then commits the new chip.
+ * palette picker, emits `sac:create`, then commits the new chip.
  *
  * Keyboard:
  *   - Tab / Enter / ,    commit highlighted/top
@@ -25,10 +25,11 @@
  *   suggestions  — array of { name, color, count? }; color is a palette slot
  *                  name ("blue", "orange", … — see --palette-* tokens).
  *
- * Events (bubble + composed):
- *   change       — e.detail = string[] (new list, normalised, deduped).
- *   chip-create  — e.detail = { name, color } — the host persists the new
- *                  entry and typically refreshes .suggestions.
+ * Events:
+ *   sac:change  — e.detail = { value: string[] } (new list, normalised, deduped).
+ *                 Bubbles, NOT composed (native change semantics).
+ *   sac:create  — e.detail = { name, color }, bubbles + composed — the host
+ *                 persists the new entry and typically refreshes .suggestions.
  */
 (function () {
 
@@ -39,6 +40,14 @@
 
 class SacChipInput extends HTMLElement {
     static PALETTE_SLOTS = ["blue", "orange", "red", "green", "purple", "pink", "yellow", "teal", "gray", "indigo"];
+    static get observedAttributes() { return ["disabled"]; }
+
+    get disabled() { return this.hasAttribute("disabled"); }
+    set disabled(v) { if (v) this.setAttribute("disabled", ""); else this.removeAttribute("disabled"); }
+
+    attributeChangedCallback(name) {
+        if (name === "disabled" && this._entry) this._entry.disabled = this.disabled;
+    }
 
     constructor() {
         super();
@@ -99,6 +108,7 @@ class SacChipInput extends HTMLElement {
         const addLabel = this.getAttribute("add-label") || t("chip-input.add", "Add");
         this.shadowRoot.innerHTML = `
             <style>
+                :host([disabled]) { opacity: .5; pointer-events: none; }
                 :host {
                     display: inline-block;
                     position: relative;
@@ -249,6 +259,7 @@ class SacChipInput extends HTMLElement {
         `;
         this._chipsRoot = this.shadowRoot.getElementById("row");
         this._entry = this.shadowRoot.getElementById("entry");
+        this._entry.disabled = this.disabled;
         this._addBtn = this.shadowRoot.getElementById("add-btn");
         this._dropdown = this.shadowRoot.getElementById("dropdown");
 
@@ -295,7 +306,7 @@ class SacChipInput extends HTMLElement {
             chip.setAttribute("label", name);
             chip.setAttribute("color", this._colorFor(name));
             chip.setAttribute("removable", "");
-            chip.addEventListener("chip-remove", (e) => this._removeChip(e.detail.label));
+            chip.addEventListener("sac:remove", (e) => this._removeChip(e.detail.label));
             this._chipsRoot.insertBefore(chip, this._addBtn);
         }
     }
@@ -386,23 +397,32 @@ class SacChipInput extends HTMLElement {
             opts.push({ kind: "create", name: this._normalize(q) });
         }
 
+        // Keep the committed option set in lockstep with what is rendered —
+        // including the empty case, or Enter/arrows act on a stale list the
+        // user can no longer see (dropdown says "no matches", commit adds one).
+        this._currentOpts = opts;
         if (opts.length === 0) {
+            this._highlight = 0;
             this._dropdown.innerHTML = `<div class="opt" style="color:var(--text-muted);cursor:default;">${esc(t("chip-input.no-matches", "no matches"))}</div>`;
             return;
         }
 
         if (this._highlight >= opts.length) this._highlight = 0;
-        this._currentOpts = opts;
 
+        // Suggestion names + colors are host-supplied and (unlike committed
+        // chips) NOT normalised, so both are untrusted in this innerHTML sink.
+        // The color feeds a CSS var name inside a style attribute — restrict it
+        // to the slot charset so it can neither break out nor inject.
+        const safeSlot = (c) => (/^[a-z0-9_-]+$/i.test(c || "") ? c : "gray");
         const html = opts.map((o, i) => {
             if (o.kind === "create") {
-                return `<div class="opt create ${i === this._highlight ? "hl" : ""}" data-idx="${i}">${esc(t("chip-input.create", 'Create "{name}"')).replace("{name}", o.name)}</div>`;
+                return `<div class="opt create ${i === this._highlight ? "hl" : ""}" data-idx="${i}">${esc(t("chip-input.create", 'Create "{name}"')).replace("{name}", esc(o.name))}</div>`;
             }
-            const color = `var(--palette-${o.entry.color || "gray"}, var(--palette-gray))`;
-            const count = o.entry.count > 0 ? `<span class="count">${o.entry.count}</span>` : "";
+            const color = `var(--palette-${safeSlot(o.entry.color)}, var(--palette-gray))`;
+            const count = o.entry.count > 0 ? `<span class="count">${esc(String(o.entry.count))}</span>` : "";
             return `<div class="opt ${i === this._highlight ? "hl" : ""}" data-idx="${i}">
                         <span class="swatch" style="background:${color}"></span>
-                        <span>${o.entry.name}</span>${count}
+                        <span>${esc(o.entry.name)}</span>${count}
                     </div>`;
         }).join("");
 
@@ -443,7 +463,7 @@ class SacChipInput extends HTMLElement {
                 const name = this._creating;
                 this._creating = null;
                 this._colors.set(name, color);
-                this.dispatchEvent(new CustomEvent("chip-create", {
+                this.dispatchEvent(new CustomEvent("sac:create", {
                     detail: { name, color },
                     bubbles: true, composed: true,
                 }));
@@ -534,9 +554,9 @@ class SacChipInput extends HTMLElement {
     }
 
     _emit() {
-        this.dispatchEvent(new CustomEvent("change", {
-            detail: [...this._value],
-            bubbles: true, composed: true,
+        this.dispatchEvent(new CustomEvent("sac:change", {
+            detail: { value: [...this._value] },
+            bubbles: true, composed: false,   // native change semantics (value control)
         }));
     }
 }

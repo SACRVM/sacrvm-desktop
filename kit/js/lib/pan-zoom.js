@@ -12,6 +12,7 @@
  * transform-origin:0 0 — the kit's .pz-layer class does exactly this).
  */
 (function () {
+    if (!window.sac) { console.warn("[sac.setupPanZoom] globals.js must load first — pan/zoom unavailable."); return; }
     function setupPanZoom({ panes, minScale = 0.2, maxScale = 24, enabled, onChange }) {
         let scale = 1, tx = 0, ty = 0;
         const active = () => (typeof enabled !== 'function') || enabled();

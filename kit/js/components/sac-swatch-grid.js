@@ -57,7 +57,7 @@
  *            loaded from a file, a computed ramp). The getter reads the
  *            current children back into the same shape.
  * <sac-swatch-grid> event:
- *   sac:swatch-select — detail { value, swatch }. Fires only when the user
+ *   sac:change — detail { value, swatch }, bubbles (not composed). Fires only when the user
  *            clicks (or keyboard-activates) a different, non-disabled swatch
  *            than the one already selected — never for programmatic
  *            `selected` changes (direct attribute writes, the `.colors`
@@ -510,10 +510,10 @@
             for (const s of this._swatches()) {
                 s.toggleAttribute("selected", s === swatch);
             }
-            this.dispatchEvent(new CustomEvent("sac:swatch-select", {
+            this.dispatchEvent(new CustomEvent("sac:change", {
                 detail:   { value: swatch.getAttribute("value") || "", swatch },
                 bubbles:  true,
-                composed: true,
+                composed: false,   // native change semantics (value control)
             }));
         }
 

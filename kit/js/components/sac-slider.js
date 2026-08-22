@@ -11,17 +11,19 @@
  *
  * Attributes:
  *   label, min, max, step, value, suffix,
- *   labels — comma-separated texts mapped by integer value (discrete steps).
+ *   labels   — comma-separated texts mapped by integer value (discrete steps).
+ *   disabled — presence = inert + dimmed, fires nothing.
  *
  * Properties:
- *   value — get/set, reflects the attribute (string).
+ *   value    — get/set, reflects the attribute (string).
+ *   disabled — get/set, reflects the attribute.
  *
- * Events:
- *   input  — fired on drag (live); e.detail = string value.
- *   change — fired on release;     e.detail = string value.
+ * Events (bubble, NOT composed — like native input/change; detail { value }):
+ *   sac:input  — fired on drag (live); detail.value = string.
+ *   sac:change — fired on release;     detail.value = string.
  */
 class SacSlider extends HTMLElement {
-    static get observedAttributes() { return ["label", "min", "max", "step", "value", "suffix", "labels"]; }
+    static get observedAttributes() { return ["label", "min", "max", "step", "value", "suffix", "labels", "disabled"]; }
 
     constructor() {
         super();
@@ -38,11 +40,22 @@ class SacSlider extends HTMLElement {
     attributeChangedCallback(name) {
         if (!this.shadowRoot.firstChild) return;
         if (name === "value") this._syncValue();
+        else if (name === "disabled") this._syncDisabled();
         else this._syncStructure();
     }
 
     get value() { return this.getAttribute("value") || ""; }
     set value(v) { this.setAttribute("value", String(v)); }
+
+    get disabled() { return this.hasAttribute("disabled"); }
+    set disabled(v) { if (v) this.setAttribute("disabled", ""); else this.removeAttribute("disabled"); }
+
+    /** The native range input carries disabled — it then fires nothing on its
+     *  own; the host CSS dims it. */
+    _syncDisabled() {
+        const input = this.shadowRoot.querySelector("input");
+        if (input) input.disabled = this.disabled;
+    }
 
     _labels() {
         return (this.getAttribute("labels") || "").split(",").map(s => s.trim()).filter(Boolean);
@@ -118,31 +131,35 @@ class SacSlider extends HTMLElement {
                     cursor: pointer;
                     border: none;
                 }
+                :host([disabled]) { opacity: .5; }
+                :host([disabled]) input[type="range"] { cursor: not-allowed; }
             </style>
             <div class="row">
                 <span class="label">${label}</span>
                 <span class="val">${this._display(value)}</span>
             </div>
-            <input type="range" min="${min}" max="${max}" step="${step}" value="${value}"/>
+            <input type="range" min="${min}" max="${max}" step="${step}" value="${value}" ${this.disabled ? "disabled" : ""}/>
         `;
     }
 
     attach() {
         const input = this.shadowRoot.querySelector("input");
+        // Value control: sac:input (live) + sac:change (commit), detail { value },
+        // bubbles but NOT composed — same shape and shadow behavior as native.
         const fire = (type, value) => this.dispatchEvent(new CustomEvent(type, {
-            detail: value,
+            detail: { value },
             bubbles: true,
-            composed: true
+            composed: false
         }));
         input.addEventListener("input", (e) => {
-            e.stopPropagation();               // keep the composed native event in
+            e.stopPropagation();               // swallow the native input event
             this.setAttribute("value", input.value);   // → _syncValue, in place
-            fire("input", input.value);
+            fire("sac:input", input.value);
         });
         input.addEventListener("change", (e) => {
             e.stopPropagation();
             this.setAttribute("value", input.value);
-            fire("change", input.value);
+            fire("sac:change", input.value);
         });
     }
 }

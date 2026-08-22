@@ -30,7 +30,7 @@
  *   open() / close() / toggle() — show, hide, flip.
  *
  * Events:
- *   sac:menu-select — detail { action } — the clicked item's data-action.
+ *   sac:select — detail { action } — the clicked item's data-action.
  *                     Bubbles + composed. The menu closes right after.
  *
  * Slots:
@@ -226,6 +226,10 @@ class SacMenu extends HTMLElement {
         // Trigger click — delegated on the slot wrapper, so any markup works.
         this._triggerBox.addEventListener("click", () => this.toggle());
         this._triggerSlot.addEventListener("slotchange", () => this._syncTrigger());
+        // A role="menu" needs role="menuitem" children — give the slotted
+        // buttons their role as they arrive (and for the initial set).
+        this._itemSlot.addEventListener("slotchange", () => this._syncItems());
+        this._syncItems();
 
         // Item click — light DOM, so listen on the host and walk composedPath.
         this.addEventListener("click", (e) => this._onItemClick(e));
@@ -312,6 +316,14 @@ class SacMenu extends HTMLElement {
             .filter(el => el.matches("button:not([disabled])"));
     }
 
+    /** Tag slotted buttons as menuitems so role="menu" is complete for AT. */
+    _syncItems() {
+        if (!this._itemSlot) return;
+        for (const el of this._itemSlot.assignedElements({ flatten: true })) {
+            if (el.matches("button")) el.setAttribute("role", "menuitem");
+        }
+    }
+
     _clearHighlight() {
         for (const el of this.querySelectorAll("button.hl")) el.classList.remove("hl");
     }
@@ -347,7 +359,7 @@ class SacMenu extends HTMLElement {
             n.getAttribute("slot") !== "trigger"
         );
         if (!btn || btn.disabled) return;
-        this.dispatchEvent(new CustomEvent("sac:menu-select", {
+        this.dispatchEvent(new CustomEvent("sac:select", {
             detail: { action: btn.dataset.action },
             bubbles: true,
             composed: true,

@@ -11,12 +11,16 @@
  * Attributes:
  *   label      — display text.
  *   color      — palette slot. Defaults to "gray" if unknown.
- *   removable  — shows an × button. Click emits 'chip-remove'.
+ *   removable  — shows an × button. Click emits 'sac:remove'.
  *   selected   — filter-strip "active" state; brighter ring + saturated bg.
  *   clickable  — pointer cursor + hover affordance (filter-strip mode).
+ *   disabled   — inert + dimmed; the × emits nothing.
+ *
+ * Properties:
+ *   disabled   — get/set, reflects the attribute.
  *
  * Events:
- *   chip-remove — e.detail = { label } (only when [removable] is set),
+ *   sac:remove — e.detail = { label } (only when [removable] is set),
  *                 bubbles + composed.
  */
 (function () {
@@ -27,12 +31,15 @@
         (window.sac && window.sac.t) ? window.sac.t(key, fallback) : fallback;
 
 class SacChip extends HTMLElement {
-    static get observedAttributes() { return ["label", "color", "removable", "selected", "clickable"]; }
+    static get observedAttributes() { return ["label", "color", "removable", "selected", "clickable", "disabled"]; }
 
     constructor() {
         super();
         this.attachShadow({ mode: "open" });
     }
+
+    get disabled() { return this.hasAttribute("disabled"); }
+    set disabled(v) { if (v) this.setAttribute("disabled", ""); else this.removeAttribute("disabled"); }
 
     connectedCallback() {
         if (!this.shadowRoot.firstChild) this._render();
@@ -67,6 +74,7 @@ class SacChip extends HTMLElement {
                     user-select: none;
                     transition: background 120ms, border-color 120ms, transform 80ms;
                 }
+                :host([disabled]) { opacity: .5; pointer-events: none; }
                 :host([clickable]) { cursor: pointer; }
                 :host([clickable]:hover) {
                     background: color-mix(in srgb, var(--chip-color) 30%, transparent);
@@ -116,7 +124,8 @@ class SacChip extends HTMLElement {
         `;
         this.shadowRoot.querySelector(".x").addEventListener("click", (e) => {
             e.stopPropagation();
-            this.dispatchEvent(new CustomEvent("chip-remove", {
+            if (this.disabled) return;
+            this.dispatchEvent(new CustomEvent("sac:remove", {
                 detail: { label: this.getAttribute("label") || "" },
                 bubbles: true, composed: true,
             }));

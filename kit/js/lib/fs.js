@@ -45,7 +45,8 @@
  *                                 unsubscribe function.
  */
 (function () {
-    if (!window.sac || sac.fs) return;
+    if (!window.sac) { console.warn("[sac.fs] globals.js must load first — storage unavailable."); return; }
+    if (sac.fs) return;   // idempotent
 
     const ROOT = "sac.fs/";
 

@@ -26,7 +26,8 @@
  *           sac-slider's attribute-vs-interaction event model).
  *
  * Events:
- *   sac:theme-changed — fired on click; detail = { theme } (bubbles, composed).
+ *   sac:change — fired on user click only (never on a programmatic .theme set);
+ *                detail = { value: theme }, bubbles (not composed).
  */
 (function () {
 
@@ -86,10 +87,13 @@ class SacThemeToggle extends HTMLElement {
         this._persist(theme);
         this._theme = theme;
         this._highlight(theme);
-        this.dispatchEvent(new CustomEvent("sac:theme-changed", {
-            detail: { theme },
+        // Value control (the picked theme). Only _select() — a user click —
+        // dispatches; the `theme` setter (used by apps.js to SYNC the toggle)
+        // stays silent, or that sync would loop. Bubbles, not composed.
+        this.dispatchEvent(new CustomEvent("sac:change", {
+            detail: { value: theme },
             bubbles: true,
-            composed: true,
+            composed: false,
         }));
     }
 

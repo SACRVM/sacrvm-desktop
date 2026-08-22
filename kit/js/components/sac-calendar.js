@@ -37,7 +37,7 @@
  *   focus(options) — focuses the tabbable day cell.
  *
  * Events:
- *   sac:date-change — detail { value }, bubbles + composed. Fired on USER
+ *   sac:change — detail { value }, bubbles + composed. Fired on USER
  *           selection only (click, Enter/Space), and only when the date
  *           actually changes — re-selecting the selected day stays quiet.
  *
@@ -334,10 +334,10 @@
             }
             const now = isoOf(d);
             if (now === before) return;
-            this.dispatchEvent(new CustomEvent("sac:date-change", {
+            this.dispatchEvent(new CustomEvent("sac:change", {
                 detail:   { value: now },
                 bubbles:  true,
-                composed: true,
+                composed: false,   // native change semantics (value control)
             }));
         }
 

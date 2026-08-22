@@ -100,10 +100,19 @@
         // Injected scripts do NOT hold up DOMContentLoaded, so code that
         // needs sac.* cannot simply listen for that event — wait for
         // "sac:ready" instead (see the doc block above).
-        s.onload = s.onerror = () => {
+        const settle = () => {
             if (--pending) return;
             window.sacReady = true;
             document.dispatchEvent(new CustomEvent("sac:ready", { bubbles: true }));
+        };
+        s.onload = settle;
+        // A file that 404s must not pass silently as "loaded" — the boot then
+        // proceeds and fails downstream (a missing lib leaves sac.* undefined).
+        // Still count it toward readiness so one bad file cannot hang the whole
+        // page, but say so, loudly, with the path.
+        s.onerror = () => {
+            console.error(`[sac] failed to load ${file} — sac.* may be incomplete`);
+            settle();
         };
         document.head.appendChild(s);
     }

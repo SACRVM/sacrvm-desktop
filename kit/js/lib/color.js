@@ -195,7 +195,6 @@
         return luma(rgb) > 0.35 ? "#000000" : "#ffffff";
     }
 
-    if (window.sac && !sac.color) {
-        sac.color = { parse, format, rgbToHsv, hsvToRgb, luma, onColor };
-    }
+    if (!window.sac) console.warn("[sac.color] globals.js must load first — colour helpers unavailable.");
+    else if (!sac.color) sac.color = { parse, format, rgbToHsv, hsvToRgb, luma, onColor };
 })();

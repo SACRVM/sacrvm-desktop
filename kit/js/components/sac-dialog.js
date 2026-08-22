@@ -14,7 +14,7 @@
  *   ];
  *   dlg.append(Object.assign(document.createElement("p"), { textContent: "…" }));
  *   document.body.appendChild(dlg);
- *   dlg.addEventListener("sac-dialog:action", e => console.log(e.detail.action));
+ *   dlg.addEventListener("sac:action", e => console.log(e.detail.action));
  *   dlg.open();
  *
  * Keyboard:
@@ -50,13 +50,15 @@ class SacDialog extends HTMLElement {
 
     open() {
         this._resolved = false;
+        // Remember who to hand focus back to when we close (the trigger).
+        this._restoreFocus = document.activeElement;
         this._render();
         this.setAttribute("open", "");
         // Host focus so keydown routes here even before any button is focused.
         this.focus();
         document.addEventListener("keydown", this._onKeydown, true);
         this._startArmTimer();
-        this.dispatchEvent(new CustomEvent("sac-dialog:open"));
+        this.dispatchEvent(new CustomEvent("sac:open", { bubbles: true, composed: true }));
     }
 
     close(action = null) {
@@ -65,7 +67,26 @@ class SacDialog extends HTMLElement {
         this._cancelArmTimer();
         document.removeEventListener("keydown", this._onKeydown, true);
         this.removeAttribute("open");
-        this.dispatchEvent(new CustomEvent("sac-dialog:action", { detail: { action } }));
+        // Return focus to the element that opened us — a modal that drops focus
+        // on the body strands keyboard and screen-reader users.
+        const back = this._restoreFocus;
+        this._restoreFocus = null;
+        if (back && back.isConnected && typeof back.focus === "function") {
+            back.focus({ preventScroll: true });
+        }
+        this.dispatchEvent(new CustomEvent("sac:action", { detail: { action }, bubbles: true, composed: true }));
+    }
+
+    /** Everything Tab should cycle: slotted interactive content (links, inputs
+     *  in the message) first, then the dialog's own action buttons. The old
+     *  trap saw only the buttons, so a link in the body was unreachable. */
+    _focusables() {
+        const sel = 'a[href], button:not([disabled]), input:not([disabled]), ' +
+            'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+        return [
+            ...Array.from(this.querySelectorAll(sel)),
+            ...Array.from(this.shadowRoot.querySelectorAll(".btn")),
+        ];
     }
 
     _onKeydown(e) {
@@ -76,14 +97,16 @@ class SacDialog extends HTMLElement {
             return;
         }
         if (e.key === "Tab") {
-            // Focus trap across the dialog's own buttons.
-            const btns = Array.from(this.shadowRoot.querySelectorAll(".btn"));
-            if (btns.length === 0) return;
-            const active = this.shadowRoot.activeElement;
-            const idx = btns.indexOf(active);
+            // Focus trap across ALL focusables — slotted content and buttons.
+            const items = this._focusables();
+            if (items.length === 0) return;
+            // A shadow button reads from shadowRoot.activeElement; a focused
+            // slotted (light-DOM) element does not, so fall back to document.
+            const active = this.shadowRoot.activeElement || document.activeElement;
+            const idx = items.indexOf(active);
             let next;
-            if (e.shiftKey) next = btns[(idx <= 0 ? btns.length : idx) - 1];
-            else            next = btns[(idx + 1) % btns.length];
+            if (e.shiftKey) next = items[(idx <= 0 ? items.length : idx) - 1];
+            else            next = items[(idx + 1) % items.length];
             e.preventDefault();
             next.focus();
         }
@@ -290,7 +313,15 @@ class SacDialog extends HTMLElement {
 
     _renderHeader() {
         const el = this.shadowRoot.getElementById("dlg-title");
-        if (el) el.textContent = this.getAttribute("title") || "";
+        const title = this.getAttribute("title") || "";
+        if (el) el.textContent = title;
+        // Name the dialog by its title for assistive tech — but only when there
+        // IS one, or aria-labelledby would point at an empty node.
+        const panel = this.shadowRoot.querySelector(".panel");
+        if (panel) {
+            if (title) panel.setAttribute("aria-labelledby", "dlg-title");
+            else       panel.removeAttribute("aria-labelledby");
+        }
     }
 
     _renderButtons() {

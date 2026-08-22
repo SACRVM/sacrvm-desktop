@@ -283,5 +283,6 @@
         isMac() { return MAC; },
     };
 
-    if (window.sac && !sac.hotkeys) sac.hotkeys = api;
+    if (!window.sac) console.warn("[sac.hotkeys] globals.js must load first — hotkeys unavailable.");
+    else if (!sac.hotkeys) sac.hotkeys = api;
 })();

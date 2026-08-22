@@ -16,7 +16,8 @@
  *   brand      — brand text left of the separator (optional).
  *   brand-icon — sac.icons name rendered before the brand text (optional).
  *   brand-href — where the brand links to (default "#/", scope-aware).
- *   app-name   — accent-colored text after "BRAND ·".
+ *   app-name   — accent-colored text after the brand (spacing separates the
+ *                segments; no divider glyph — two icons plus a dot was noise).
  *   host-href  — the HOST'S jump-home address. Attribute form of the jump
  *   host-label   only; a hosted app normally sets the `host` PROPERTY instead
  *   host-icon    (see below), which carries the whole injection. Observed, so
@@ -26,15 +27,30 @@
  * Property:
  *   host — THE injection point of the app contract. A hosted app assigns
  *          context.host here, one line in mount():  nav.host = context.host
- *          Shape: { name, icon, href,          → the muted "⌂ HOST ·" jump
+ *          Shape: { name, icon, href,          → the HOST jump-home
+ *                                                segment, rendered with the
+ *                                                brand recipe (one title-bar
+ *                                                style everywhere; the app's
+ *                                                own segment goes accent)
  *                   nav:     [{label, href, icon?}],       → a labeled host
  *                            group at the top of the burger panel (the
  *                            suite's cross-app navigation)
  *                   toolbar: [{icon, label?, title?, href? | onClick?}] }
  *                            → host controls at the right end of the ribbon
- *                            (a signed-in user, a suite-wide action, …)
+ *                            (a signed-in user, a suite-wide action, …).
+ *                            Rendered as light-DOM .nav-icon-btn elements —
+ *                            the same ui.css recipe as the app's own ribbon
+ *                            buttons, so the two always look alike.
  *          Everything is rendered by the APP'S OWN nav — the host supplies
  *          data, it never paints. null/absent = standalone, nothing renders.
+ *
+ *   sections — the app's OWN sub-navigation, OPTIONAL: [{label, href, icon?}].
+ *          Entirely the app's choice — a simple app sets nothing and its
+ *          suite entry stays a plain point. When set AND a host group is
+ *          present, the entries nest indented under the app's own entry in
+ *          the burger panel (found by address match) — one tree: the suite,
+ *          with the running app unfolded. Standalone the same entries render
+ *          as the panel's flat list.
  *
  * Slots:
  *   context — persistent controls (e.g. a scope switcher).
@@ -67,12 +83,55 @@ class SacNav extends HTMLElement {
         this.attachShadow({ mode: "open" });
         this.isOpen = false;
         this._host = null;
+        this._sections = [];
     }
 
     /** The host's injection (see header). Assign context.host in mount(). */
     get host() { return this._host; }
     set host(v) {
         this._host = v || null;
+        this._syncHostTools();
+        if (this.shadowRoot.firstChild) this.render();
+    }
+
+    /**
+     * The host's toolbar controls are rendered as LIGHT-DOM .nav-icon-btn
+     * elements slotted into "host-tools" — the exact same ui.css recipe as
+     * the app's own ribbon buttons, so the two can never look different.
+     * Owned and replaced wholesale by the nav (marked data-sac-host-tool).
+     */
+    _syncHostTools() {
+        this.querySelectorAll("[data-sac-host-tool]").forEach((el) => el.remove());
+        const tools = (this._host && Array.isArray(this._host.toolbar)) ? this._host.toolbar : [];
+        tools.forEach((tb) => {
+            const el = document.createElement(tb.href ? "a" : "button");
+            el.className = "nav-icon-btn" + (tb.label ? " labeled" : "");
+            el.slot = "host-tools";
+            el.dataset.sacHostTool = "";
+            el.title = tb.title || tb.label || "";
+            if (tb.href) el.href = tb.href;
+            else el.type = "button";
+            if (tb.icon) {
+                const ic = document.createElement("sac-icon");
+                ic.setAttribute("name", tb.icon);
+                el.appendChild(ic);
+            }
+            if (tb.label) {
+                const sp = document.createElement("span");
+                sp.textContent = tb.label;
+                el.appendChild(sp);
+            }
+            if (!tb.href && typeof tb.onClick === "function") {
+                el.addEventListener("click", () => tb.onClick(tb));
+            }
+            this.appendChild(el);
+        });
+    }
+
+    /** The app's own sub-navigation (see header). Optional. */
+    get sections() { return this._sections; }
+    set sections(v) {
+        this._sections = Array.isArray(v) ? v : [];
         if (this.shadowRoot.firstChild) this.render();
     }
 
@@ -107,6 +166,7 @@ class SacNav extends HTMLElement {
         const hostIcon  = injected.icon || this.getAttribute("host-icon") || "home";
         const hostNav   = Array.isArray(injected.nav) ? injected.nav : [];
         const hostTools = Array.isArray(injected.toolbar) ? injected.toolbar : [];
+        const sections  = this._sections;
 
         const routes = (window.sac?.router?.routes() || []).filter(r => r.hash !== "#/")
             // On a shared page (launcher pattern) the router carries the
@@ -197,29 +257,13 @@ class SacNav extends HTMLElement {
                     display: flex; align-items: center; gap: 0.5rem;
                     text-decoration: none;
                 }
-                .brand .sep { color: color-mix(in srgb, var(--fg) 30%, transparent); }
                 .brand .app-name { color: var(--accent); }
 
-                /* The host's injected presence: muted, before the brand. */
-                .host-jump {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.4rem;
-                    padding: 4px 8px;
-                    border-radius: var(--radius-m);
-                    color: var(--text-muted);
-                    text-decoration: none;
-                    font-family: 'Outfit', sans-serif;
-                    font-weight: 700;
-                    font-size: 0.8rem;
-                    letter-spacing: 0.06em;
-                }
-                .host-jump:hover { background: var(--hover); color: var(--text); }
-                .host-jump sac-icon { --icon-size: 15px; }
-                .host-sep {
-                    margin: 0 0.5rem 0 0.25rem;
-                    color: color-mix(in srgb, var(--fg) 30%, transparent);
-                }
+                /* The host's injected presence renders with the BRAND recipe —
+                   one title-bar style everywhere: host, then the app's segment
+                   in accent. Spacing alone separates the segments — a divider
+                   glyph on top of two icon+name pairs reads restless. */
+                .host-jump { margin-right: 0.9rem; }
                 .spacer { flex: 1; }
                 .toolbar-slot { display: flex; gap: 0.25rem; align-items: center; }
                 .context { display: flex; align-items: center; margin-right: 0.6rem; }
@@ -297,34 +341,26 @@ class SacNav extends HTMLElement {
                     border-top: 1px solid var(--border);
                     margin: 0.9rem 1.5rem;
                 }
+                /* The app's own sections, nested under its suite entry. */
+                .sub-list { list-style: none; padding: 0; margin: 0; }
+                .sub-list .nav-item {
+                    padding: 0.45rem 1.5rem 0.45rem 3.1rem;
+                    font-size: 0.85rem;
+                }
+                .sub-list .nav-item sac-icon { --icon-size: 15px; }
 
                 /* Host toolbar controls (injected via the host property) —
-                   right end of the ribbon, after the app's own toolbar. */
+                   right end of the ribbon, after the app's own toolbar.
+                   Only LAYOUT lives here: the buttons themselves are
+                   light-DOM .nav-icon-btn elements (see _syncHostTools),
+                   styled by the one recipe in ui.css — the exact same class
+                   as the app's own ribbon buttons, so they cannot drift. */
                 .host-tools {
                     display: flex;
                     gap: 0.25rem;
                     align-items: center;
                     margin-left: 0.5rem;
                 }
-                .host-tool {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 0.4rem;
-                    height: 32px;
-                    min-width: 32px;
-                    padding: 0 7px;
-                    background: none;
-                    border: none;
-                    cursor: pointer;
-                    border-radius: var(--radius-m);
-                    color: var(--text-muted);
-                    text-decoration: none;
-                    font-family: inherit;
-                    font-size: 0.8rem;
-                }
-                .host-tool:hover { background: var(--hover); color: var(--text); }
-                .host-tool sac-icon { --icon-size: 17px; }
 
                 /* Scrollbar theme — duplicated because the global rule in
                    ui.css doesn't pierce Shadow DOM. */
@@ -346,61 +382,76 @@ class SacNav extends HTMLElement {
                     <span></span><span></span><span></span>
                 </button>
                 ${hostHref ? `
-                <a class="host-jump" href="${hostHref.replace(/"/g, "&quot;")}"
+                <a class="brand host-jump" href="${hostHref.replace(/"/g, "&quot;")}"
                    title="${(hostLabel || "Home").replace(/"/g, "&quot;")}">
-                    <sac-icon name="${hostIcon}"></sac-icon>
+                    <span class="brand-mark"><sac-icon name="${hostIcon}"></sac-icon></span>
                     ${hostLabel ? `<span>${hostLabel}</span>` : ``}
-                </a>
-                <span class="sep host-sep">·</span>` : ``}
+                </a>` : ``}
                 <a class="brand" href="${hrefFor(brandHref)}">
                     ${brandIcon ? `<span class="brand-mark"><sac-icon name="${brandIcon}"></sac-icon></span>` : ``}
-                    ${brand ? `<span>${brand}</span>` : ``}
-                    ${brand && appName ? `<span class="sep">·</span>` : ``}
+                    ${brand ? `<span class="${hostHref ? "app-name" : ""}">${brand}</span>` : ``}
                     ${appName ? `<span class="app-name">${appName}</span>` : ``}
                 </a>
                 <div class="spacer"></div>
                 <div class="context"><slot name="context"></slot></div>
                 <div class="toolbar-slot"><slot name="toolbar"></slot></div>
                 ${hostTools.length ? `
-                <div class="host-tools">
-                    ${hostTools.map((tb, i) => {
-                        const icon  = tb.icon ? `<sac-icon name="${esc(tb.icon)}"></sac-icon>` : "";
-                        const label = tb.label ? `<span>${escText(tb.label)}</span>` : "";
-                        const title = esc(tb.title || tb.label || "");
-                        return tb.href
-                            ? `<a class="host-tool" href="${esc(tb.href)}" title="${title}">${icon}${label}</a>`
-                            : `<button class="host-tool" data-host-tool="${i}" title="${title}">${icon}${label}</button>`;
-                    }).join("")}
-                </div>` : ``}
+                <div class="host-tools"><slot name="host-tools"></slot></div>` : ``}
             </nav>
             <div class="backdrop"></div>
             <aside class="panel">
                 ${hostNav.length ? `
                 <div class="panel-label">${escText(hostLabel || t("nav.host", "Host"))}</div>
                 <ul class="nav-list">
-                    ${hostNav.map(e => `
+                    ${hostNav.map(e => {
+                        // The entry addressing the running app carries the
+                        // app's own sections as an indented subtree.
+                        const self = isActiveHref(e.href);
+                        return `
                         <li>
-                            <a class="nav-item ${isActiveHref(e.href) ? "active" : ""}" href="${esc(hrefFor(e.href))}">
+                            <a class="nav-item ${self ? "active" : ""}" href="${esc(hrefFor(e.href))}">
                                 ${e.icon ? `<sac-icon name="${esc(e.icon)}"></sac-icon>` : ""}
                                 <span>${escText(e.label)}</span>
                             </a>
-                        </li>
-                    `).join("")}
+                            ${self && sections.length ? `
+                            <ul class="sub-list">
+                                ${sections.map(s => `
+                                    <li>
+                                        <a class="nav-item ${isActiveHref(s.href) ? "active" : ""}" href="${esc(hrefFor(s.href))}">
+                                            ${s.icon ? `<sac-icon name="${esc(s.icon)}"></sac-icon>` : ""}
+                                            <span>${escText(s.label)}</span>
+                                        </a>
+                                    </li>
+                                `).join("")}
+                            </ul>` : ``}
+                        </li>`;
+                    }).join("")}
                 </ul>
                 ${routes.length ? `<hr class="panel-sep">${(appName || brand)
                     ? `<div class="panel-label">${escText(appName || brand)}</div>` : ``}` : ``}` : ``}
                 ${routes.length === 0
-                    ? (hostNav.length ? `` : `<div class="panel-empty">${L.noSections}</div>`)
+                    ? ((hostNav.length || sections.length) ? `` : `<div class="panel-empty">${L.noSections}</div>`)
                     : `<ul class="nav-list">
                          ${routes.map(r => `
                              <li>
-                                 <a class="nav-item ${isActive(r) ? "active" : ""}" href="${hrefFor(r.hash)}">
-                                     ${r.icon ? `<sac-icon name="${r.icon}"></sac-icon>` : ""}
-                                     <span>${r.label}</span>
+                                 <a class="nav-item ${isActive(r) ? "active" : ""}" href="${esc(hrefFor(r.hash))}">
+                                     ${r.icon ? `<sac-icon name="${esc(r.icon)}"></sac-icon>` : ""}
+                                     <span>${escText(r.label)}</span>
                                  </a>
                              </li>
                          `).join("")}
                        </ul>`}
+                ${!hostNav.length && sections.length ? `
+                <ul class="nav-list">
+                    ${sections.map(s => `
+                        <li>
+                            <a class="nav-item ${isActiveHref(s.href) ? "active" : ""}" href="${esc(hrefFor(s.href))}">
+                                ${s.icon ? `<sac-icon name="${esc(s.icon)}"></sac-icon>` : ""}
+                                <span>${escText(s.label)}</span>
+                            </a>
+                        </li>
+                    `).join("")}
+                </ul>` : ``}
             </aside>
         `;
 
@@ -425,17 +476,10 @@ class SacNav extends HTMLElement {
         menuBtn.addEventListener("click",  () => setOpen(!this.isOpen));
         backdrop.addEventListener("click", () => setOpen(false));
 
-        // Clicking a panel nav-item also closes the panel.
-        this.shadowRoot.querySelectorAll(".nav-item").forEach(el => {
+        // Clicking a panel nav-item closes the panel — and so do the ribbon's
+        // brand/host links: they navigate too, just from outside the panel.
+        this.shadowRoot.querySelectorAll(".nav-item, .brand").forEach(el => {
             el.addEventListener("click", () => setOpen(false));
-        });
-
-        // Host toolbar controls: entries with onClick are buttons.
-        this.shadowRoot.querySelectorAll("[data-host-tool]").forEach(el => {
-            el.addEventListener("click", () => {
-                const entry = (this._host && this._host.toolbar || [])[Number(el.dataset.hostTool)];
-                if (entry && typeof entry.onClick === "function") entry.onClick(entry);
-            });
         });
 
         // Restore panel state after a re-render (routes changed while open).
@@ -448,7 +492,19 @@ class SacNav extends HTMLElement {
         };
         document.addEventListener("keydown", this._escHandler);
 
-        this._hashHandler = () => this.render();
+        // These three handlers re-render the whole panel, deliberately: unlike
+        // the form components (which update in place to protect a live drag),
+        // nothing the nav holds is lost by a rebuild, and its content is
+        // genuinely structural — the app's own sections nest UNDER the active
+        // host entry, so switching app or scope RELOCATES that subtree, not
+        // just an .active class. A full render is the simple, correct model
+        // here; an in-place diff would be more code and more risk for no gain.
+        //
+        // Navigation also closes the panel. Without this, leaving through a
+        // ribbon link or back/forward parks the panel open behind a hidden view
+        // (sac.apps keeps swapped-out views in the DOM), and it greets the user
+        // already open on their return.
+        this._hashHandler = () => { this.isOpen = false; this.render(); };
         window.addEventListener("hashchange", this._hashHandler);
 
         // Re-render when a new route registers so the panel fills in even if

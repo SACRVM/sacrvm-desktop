@@ -13,7 +13,7 @@
  *   <sac-date-field label="Due" value="2026-08-15"></sac-date-field>
  *   <sac-date-field label="Start" min="2026-01-01" max="2026-12-31"></sac-date-field>
  *
- *   field.addEventListener("sac:date-change", e => plan(e.detail.value));
+ *   field.addEventListener("sac:change", e => plan(e.detail.value));
  *   field.value = "2026-09-01";     // programmatic — updates the UI, fires nothing
  *
  * Attributes:
@@ -39,7 +39,7 @@
  *           mean "the user did this"). Never overwrites text mid-typing.
  *
  * Events:
- *   sac:date-change — detail { value } — the normalized ISO (or "" when the
+ *   sac:change — detail { value } — the normalized ISO (or "" when the
  *                     user cleared the input), on USER changes only: a
  *                     committed typed date, or a day picked in the calendar.
  *                     Bubbles + composed. The calendar's own event is stopped
@@ -128,6 +128,9 @@ class SacDateField extends HTMLElement {
     get value() { return this._value; }
     set value(v) { this.setAttribute("value", v == null ? "" : String(v)); }
 
+    get disabled() { return this.hasAttribute("disabled"); }
+    set disabled(v) { if (v) this.setAttribute("disabled", ""); else this.removeAttribute("disabled"); }
+
     /* ----------------------------------------------------------- date math */
 
     /** Tolerant ISO parse: trims, pads single digits, insists on a REAL local
@@ -197,10 +200,10 @@ class SacDateField extends HTMLElement {
         this._reflect();
         this._syncUI();
         if (fire && iso !== before) {
-            this.dispatchEvent(new CustomEvent("sac:date-change", {
+            this.dispatchEvent(new CustomEvent("sac:change", {
                 detail: { value: iso },
                 bubbles: true,
-                composed: true,
+                composed: false,   // native change semantics (value control)
             }));
         }
     }
@@ -518,7 +521,7 @@ class SacDateField extends HTMLElement {
         pop.setAttribute("aria-label", t("date-field.calendar", "Calendar"));
 
         const cal = document.createElement("sac-calendar");
-        cal.addEventListener("sac:date-change", (e) => {
+        cal.addEventListener("sac:change", (e) => {
             e.stopPropagation();                  // apps listen to the FIELD, not the calendar
             const iso = SacDateField._normalize(e.detail && e.detail.value);
             if (!iso) return;                     // a pick always carries a date
@@ -530,7 +533,7 @@ class SacDateField extends HTMLElement {
         });
 
         // Close-on-pick must not depend on the value changing: re-picking the
-        // already-selected day fires no sac:date-change (the calendar stays
+        // already-selected day fires no sac:change (the calendar stays
         // quiet when nothing moved), but the popover still has to close.
         // gridcell + aria-disabled are the calendar's documented surface.
         cal.addEventListener("click", (e) => {

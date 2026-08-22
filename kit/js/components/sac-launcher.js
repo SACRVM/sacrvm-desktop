@@ -39,17 +39,23 @@
  *               that mutate state outside sac.apps.
  *
  * Events:
- *   sac:launcher-change — detail { order, hidden, customCount } after every
+ *   sac:layout — detail { order, hidden, customCount } after every
  *                         user change (move / hide / show / add / remove).
  *                         Bubbles + composed.
  *
  * Tiles:
- *   kind:"page" apps render as real <a> links; kind:"window" apps render as
- *   real <button> tiles calling sac.apps.open(id). Two optional manifest
- *   fields shape a tile: `badge` (short string — the tile's corner pill,
- *   rendered with the global .tile-badge pattern from ui.css) and `tile`
- *   ("medium" default | "wide" spans 2 grid columns | "large" spans 2
- *   columns AND 2 rows; unknown values fall back to medium silently). All
+ *   kind:"page" apps render as real <a> links; window and view apps render
+ *   as real <button> tiles calling sac.apps.open(). Every tile looks the
+ *   same — what a click does is not encoded in the border. A manifest with
+ *   a `tiles` array deploys SEVERAL tiles for one app (each entry may
+ *   override name/icon/description/badge/tile and carry `route` — a view
+ *   sub-address — `params` for a window, and `accent`). A tile's `accent`
+ *   colors the tile (icon, hover ring) AND seeds the app's --accent when
+ *   opened through it — tile color = app highlight. Optional manifest
+ *   fields shaping any tile: `badge` (short string — the tile's corner
+ *   pill, rendered with the global .tile-badge pattern from ui.css) and
+ *   `tile` ("medium" default | "wide" spans 2 grid columns | "large" spans
+ *   2 columns AND 2 rows; unknown values fall back to medium silently). All
  *   footprints collapse to medium on narrow viewports (≤768px), matching
  *   the .grid pattern. In edit mode each tile grows keyboard-reachable
  *   controls: move left / move right / hide (or show, on grayed hidden
@@ -215,9 +221,12 @@ class SacLauncher extends HTMLElement {
     _persist() {
         const key = this._storageKey();
         if (!key) return;
-        // Stale ids (apps no longer registered) drop out here — on a user
-        // change, never proactively on load.
-        const known = new Set(this._apps().map(m => m.id));
+        // Stale keys (apps/tiles no longer registered) drop out here — on a
+        // user change, never proactively on load. Filter against the ENTRY
+        // keys, not app ids: a multi-tile app stores composite "appId::tileId"
+        // keys, and matching those against ids alone discards every multi-tile
+        // customization on save.
+        const known = new Set(this._entries(this._apps()).map(e => e.key));
         this._state.order = this._order.filter(id => known.has(id));
         this._state.hidden = this._state.hidden.filter(id => known.has(id));
         try {
@@ -247,41 +256,77 @@ class SacLauncher extends HTMLElement {
         return sac.apps.list();
     }
 
-    _sync() {
-        const apps = this._apps();
-        const byId = new Map(apps.map(m => [m.id, m]));
+    /**
+     * A manifest expands into its launcher tiles: the `tiles` array when
+     * present (complex apps deploy several entry points), the manifest
+     * itself as the single default tile otherwise. Keys stay backward
+     * compatible: a default tile's key IS the app id, so persisted layouts
+     * survive the upgrade.
+     */
+    _entries(apps) {
+        const out = [];
+        apps.forEach((m) => {
+            const kind = m.kind === "page" ? "page" : "window";
+            const list = Array.isArray(m.tiles) && m.tiles.length ? m.tiles : null;
+            if (!list) {
+                out.push({ key: m.id, appId: m.id, kind,
+                    name: m.name, icon: m.icon, description: m.description,
+                    badge: m.badge, tile: m.tile, accent: m.accent,
+                    route: undefined, params: undefined, href: m.href });
+                return;
+            }
+            list.forEach((tl, i) => {
+                out.push({
+                    key: `${m.id}::${tl.id != null ? tl.id : (tl.route != null ? tl.route : i)}`,
+                    appId: m.id, kind,
+                    name: tl.name || m.name,
+                    icon: tl.icon || m.icon,
+                    description: tl.description != null ? tl.description : m.description,
+                    badge: tl.badge != null ? tl.badge : m.badge,
+                    tile: tl.tile || m.tile,
+                    accent: tl.accent || m.accent,
+                    route: tl.route, params: tl.params,
+                    href: tl.href || m.href,
+                });
+            });
+        });
+        return out;
+    }
 
-        // Effective order: persisted order (known ids only, stale ids
-        // ignored), then any registry entries not yet ordered, appended in
+    _sync() {
+        const entries = this._entries(this._apps());
+        const byKey = new Map(entries.map(e => [e.key, e]));
+
+        // Effective order: persisted order (known keys only, stale keys
+        // ignored), then any registry tiles not yet ordered, appended in
         // registration order.
-        const ordered = this._state.order.filter(id => byId.has(id));
+        const ordered = this._state.order.filter(key => byKey.has(key));
         const seen = new Set(ordered);
-        apps.forEach(m => { if (!seen.has(m.id)) ordered.push(m.id); });
+        entries.forEach(e => { if (!seen.has(e.key)) ordered.push(e.key); });
         this._order = ordered;
 
-        // Drop tiles whose app disappeared (or whose kind changed).
-        for (const [id, cell] of Array.from(this._tiles)) {
-            const m = byId.get(id);
-            const kind = m && m.kind === "page" ? "page" : "window";
-            if (!m || cell._kind !== kind) {
+        // Drop tiles whose entry disappeared (or whose kind changed).
+        for (const [key, cell] of Array.from(this._tiles)) {
+            const e = byKey.get(key);
+            if (!e || cell._kind !== e.kind) {
                 cell.remove();
-                this._tiles.delete(id);
+                this._tiles.delete(key);
             }
         }
 
         // Create missing tiles, update all in place.
         const customIds = new Set(this._state.custom.map(m => m.id));
         const hidden = new Set(this._state.hidden);
-        this._order.forEach((id, i) => {
-            const m = byId.get(id);
-            let cell = this._tiles.get(id);
+        this._order.forEach((key, i) => {
+            const e = byKey.get(key);
+            let cell = this._tiles.get(key);
             if (!cell) {
-                cell = this._makeCell(m);
-                this._tiles.set(id, cell);
+                cell = this._makeCell(e);
+                this._tiles.set(key, cell);
             }
-            this._updateCell(cell, m, {
-                hidden: hidden.has(id),
-                custom: customIds.has(id),
+            this._updateCell(cell, e, {
+                hidden: hidden.has(key),
+                custom: customIds.has(e.appId),
                 first: i === 0,
                 last: i === this._order.length - 1,
             });
@@ -301,33 +346,38 @@ class SacLauncher extends HTMLElement {
         this._empty.hidden = this._order.length > 0 || this.hasAttribute("edit");
     }
 
-    _makeCell(m) {
-        const id = m.id;
-        const kind = m.kind === "page" ? "page" : "window";
+    _makeCell(entry) {
+        const kind = entry.kind;
 
         // Cell wrapper: the tile is a real link/button and the edit controls
         // are real buttons NEXT to it (absolutely positioned on top) — never
         // interactive elements nested inside an interactive element.
         const cell = document.createElement("div");
         cell.className = "sac-launcher-cell";
-        cell.dataset.id = id;
+        cell.dataset.id = entry.key;
         cell._kind = kind;
+        cell._entry = entry;
 
         let tile;
         if (kind === "page") {
             tile = document.createElement("a");
-            tile.className = "tile sac-launcher-tile";
         } else {
             tile = document.createElement("button");
             tile.type = "button";
-            tile.className = "tile tile-window sac-launcher-tile";
         }
+        tile.className = "tile sac-launcher-tile";
         tile.addEventListener("click", (e) => {
             if (this.hasAttribute("edit")) { e.preventDefault(); return; }
-            if (kind === "window") {
+            if (kind !== "page") {
                 e.preventDefault();
+                // The tile carries what makes it distinct: its route into a
+                // view app, its params for a window app, its accent for both.
                 // The runtime reports load failures itself (console + toast).
-                if (window.sac && sac.apps) sac.apps.open(id).catch(() => {});
+                const t2 = cell._entry;
+                if (window.sac && sac.apps) {
+                    sac.apps.open(t2.appId, t2.params,
+                        { route: t2.route, accent: t2.accent }).catch(() => {});
+                }
             }
         });
 
@@ -363,36 +413,42 @@ class SacLauncher extends HTMLElement {
             return b;
         };
         cell._left = mk("left", "chevron-left", () => {
-            this._move(id, -1);
+            this._move(entry.key, -1);
             this._moveFocus(cell, -1);
         });
         cell._right = mk("right", "chevron-right", () => {
-            this._move(id, +1);
+            this._move(entry.key, +1);
             this._moveFocus(cell, +1);
         });
-        cell._vis = mk("vis", "eye-off", () => this._toggleHidden(id));
-        cell._del = mk("del", "trash", () => this._removeCustom(id));
+        cell._vis = mk("vis", "eye-off", () => this._toggleHidden(entry.key));
+        cell._del = mk("del", "trash", () => this._removeCustom(cell._entry.appId));
         cell.appendChild(controls);
         return cell;
     }
 
-    _updateCell(cell, m, f) {
-        const name = m.name || m.id;
-        cell._icon.setAttribute("name", m.icon || "shapes");
+    _updateCell(cell, entry, f) {
+        cell._entry = entry;
+        const name = entry.name || entry.appId;
+        cell._icon.setAttribute("name", entry.icon || "shapes");
         cell._h.textContent = name;
-        cell._p.textContent = m.description || "";
-        cell._p.hidden = !m.description;
-        if (cell._kind === "page") cell._tile.setAttribute("href", m.href || "#");
+        cell._p.textContent = entry.description || "";
+        cell._p.hidden = !entry.description;
+        if (cell._kind === "page") cell._tile.setAttribute("href", entry.href || "#");
         cell.classList.toggle("hidden-app", f.hidden);
         cell.classList.toggle("custom-app", f.custom);
 
-        const badge = m.badge == null ? "" : String(m.badge).trim();
+        // The tile's accent seed: icon color, hover ring and glow follow —
+        // and the same color rides into the app when opened through it.
+        if (entry.accent) cell._tile.style.setProperty("--accent", entry.accent);
+        else cell._tile.style.removeProperty("--accent");
+
+        const badge = entry.badge == null ? "" : String(entry.badge).trim();
         cell._badge.textContent = badge;
         cell._badge.hidden = !badge;
 
         // Manifest-declared footprint; unknown values fall back to medium.
-        cell.classList.toggle("size-wide", m.tile === "wide");
-        cell.classList.toggle("size-large", m.tile === "large");
+        cell.classList.toggle("size-wide", entry.tile === "wide");
+        cell.classList.toggle("size-large", entry.tile === "large");
 
         cell._left.disabled = f.first;
         cell._left.setAttribute("aria-label",
@@ -470,7 +526,7 @@ class SacLauncher extends HTMLElement {
     _afterChange() {
         this._sync();
         this._persist();
-        this.dispatchEvent(new CustomEvent("sac:launcher-change", {
+        this.dispatchEvent(new CustomEvent("sac:layout", {
             bubbles: true,
             composed: true,
             detail: {
@@ -563,7 +619,7 @@ class SacLauncher extends HTMLElement {
 
         dlg.appendChild(form);
         document.body.appendChild(dlg);
-        dlg.addEventListener("sac-dialog:action", (e) => this._onDialogAction(e.detail.action));
+        dlg.addEventListener("sac:action", (e) => this._onDialogAction(e.detail.action));
         this._dialog = dlg;
         this._formEl = form;
     }
@@ -735,9 +791,6 @@ class SacLauncher extends HTMLElement {
                 box-shadow: none;
                 border-color: var(--border-strong);
                 background: var(--tile);
-            }
-            sac-launcher[edit] .tile-window.sac-launcher-tile:hover {
-                background: color-mix(in srgb, var(--glass-hue) 60%, transparent);
             }
             sac-launcher[edit] .sac-launcher-tile:hover sac-icon { transform: none; }
 
