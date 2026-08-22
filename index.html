@@ -36,21 +36,10 @@
             <!-- One flat brand, no accented app-name segment: the accent marks
                  the app you are IN, and hosted apps render this same label as
                  one quiet unit — home says it the same way. -->
-            <sac-nav brand="SACRVM DESKTOP" brand-icon="cube" brand-href="#/">
-                <div slot="toolbar" class="toolbar">
-                    <button class="nav-icon-btn" id="info-btn" title="How this works" aria-label="How this works">
-                        <sac-icon name="info"></sac-icon>
-                    </button>
-                    <!-- ONE control for "you + this desktop": the gear until
-                         somebody says who they are, then the avatar wears it.
-                         Settings either way — the profile lives in Settings,
-                         so a badge and a gear were always the same door. -->
-                    <button class="nav-icon-btn who-btn" id="settings-btn" title="Settings" aria-label="Settings">
-                        <sac-avatar id="me-avatar" style="--avatar-size: 26px"></sac-avatar>
-                        <sac-icon name="settings"></sac-icon>
-                    </button>
-                </div>
-            </sac-nav>
+            <!-- No hand-drawn toolbar: desktop.js hands this nav the SAME
+                 toolbar entries hostPackage() injects into every app, and the
+                 same kit code renders both — home and apps cannot drift. -->
+            <sac-nav brand="SACRVM DESKTOP" brand-icon="cube" brand-href="#/"></sac-nav>
 
             <div class="orb"></div>
 

@@ -811,7 +811,18 @@
         };
     }
 
-    function declareHost() { sac.apps.init({ host: hostPackage() }); }
+    /* Home's own ribbon eats the SAME toolbar the package injects into every
+       app — no href/name, so no jump-home segment to itself. One source, one
+       renderer (the kit's host-tools path), zero drift. */
+    function paintHomeTools() {
+        const nav = document.querySelector("#app-home sac-nav");
+        if (nav) nav.host = { toolbar: hostPackage().toolbar };
+    }
+
+    function declareHost() {
+        sac.apps.init({ host: hostPackage() });
+        paintHomeTools();
+    }
 
     /* --------------------------------------------------------------- boot */
 
@@ -824,34 +835,14 @@
         renderTiles();
 
         applyAccent(storedAccent());
-        el("info-btn").addEventListener("click", openInfo);
-
-        // ONE control for "you + this desktop": the gear until somebody says
-        // who they are, then the avatar wears it. Settings either way — the
-        // profile lives in Settings, so a badge and a gear were always the
-        // same door. hostPackage() tells apps the same single truth.
-        const meBtn = el("settings-btn"), meAvatar = el("me-avatar");
-        function paintMe(profile) {
-            const me = profile !== undefined ? profile
-                     : (window.sac.identity ? sac.identity.get() : null);
-            meBtn.classList.toggle("known", !!me);
-            if (me) {
-                meAvatar.setAttribute("name", me.name);
-                if (me.avatar) meAvatar.setAttribute("src", me.avatar);
-                else meAvatar.removeAttribute("src");
-            }
-            meBtn.title = me ? `You: ${me.name} · Settings` : "Settings";
-            meBtn.setAttribute("aria-label", meBtn.title);
-        }
-        meBtn.addEventListener("click", openSettings);
-        if (window.sac.identity) { paintMe(); sac.identity.onChange(paintMe); }
 
         sac.apps.init({
             viewHost: "#app-stage",
             home: "#app-home",
             host: hostPackage(),
         });
-        // Identity is part of the package (the badge in the toolbar).
+        paintHomeTools();
+        // Identity is part of the package (the you-button in both ribbons).
         if (window.sac.identity) sac.identity.onChange(declareHost);
 
         // ?install=<url> installs by link — how you hand somebody an app.

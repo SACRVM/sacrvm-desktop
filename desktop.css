@@ -137,19 +137,6 @@
 }
 .tile-add:hover > sac-icon { color: var(--accent); }
 
-/* The one "you + this desktop" button: the gear until an identity exists,
-   then the avatar wears it — no icon padding then, an avatar keeps its own
-   round shape. */
-.who-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-.who-btn sac-avatar { display: none; }
-.who-btn.known { padding: 0; }
-.who-btn.known sac-avatar { display: block; }
-.who-btn.known > sac-icon { display: none; }
-
 /* Dialog bodies: settings. */
 .settings { display: flex; flex-direction: column; gap: 0.5rem; }
 .settings label {
