@@ -799,11 +799,13 @@
             nav: sac.router.routes()
                 .filter((r) => r.hash !== "#/")
                 .map((r) => ({ label: r.label, href: r.hash, icon: r.icon })),
-            // The home ribbon's buttons, carried into every app — and the
-            // badge, once somebody said who they are.
+            // The home ribbon's buttons, carried into every app. The second
+            // entry is the SAME "you + this desktop" control as at home,
+            // spoken in the kit's icon-and-label vocabulary (the injection
+            // carries no avatars — yet).
             toolbar: [
                 { icon: "info", title: "How this works", onClick: openInfo },
-                me ? { icon: "user", label: me.name, title: `You: ${me.name}`, onClick: openSettings }
+                me ? { icon: "user", label: me.name, title: `You: ${me.name} · Settings`, onClick: openSettings }
                    : { icon: "settings", title: "Settings", onClick: openSettings },
             ],
         };
@@ -823,21 +825,23 @@
 
         applyAccent(storedAccent());
         el("info-btn").addEventListener("click", openInfo);
-        el("settings-btn").addEventListener("click", openSettings);
 
-        // The badge is the profile made visible — and the way back to editing
-        // it. Absent while nobody has said who they are.
-        const meBtn = el("me-btn"), meAvatar = el("me-avatar");
+        // ONE control for "you + this desktop": the gear until somebody says
+        // who they are, then the avatar wears it. Settings either way — the
+        // profile lives in Settings, so a badge and a gear were always the
+        // same door. hostPackage() tells apps the same single truth.
+        const meBtn = el("settings-btn"), meAvatar = el("me-avatar");
         function paintMe(profile) {
             const me = profile !== undefined ? profile
                      : (window.sac.identity ? sac.identity.get() : null);
-            meBtn.hidden = !me;
-            if (!me) return;
-            meAvatar.setAttribute("name", me.name);
-            if (me.avatar) meAvatar.setAttribute("src", me.avatar);
-            else meAvatar.removeAttribute("src");
-            meBtn.title = me.name;
-            meBtn.setAttribute("aria-label", `You: ${me.name}`);
+            meBtn.classList.toggle("known", !!me);
+            if (me) {
+                meAvatar.setAttribute("name", me.name);
+                if (me.avatar) meAvatar.setAttribute("src", me.avatar);
+                else meAvatar.removeAttribute("src");
+            }
+            meBtn.title = me ? `You: ${me.name} · Settings` : "Settings";
+            meBtn.setAttribute("aria-label", meBtn.title);
         }
         meBtn.addEventListener("click", openSettings);
         if (window.sac.identity) { paintMe(); sac.identity.onChange(paintMe); }
