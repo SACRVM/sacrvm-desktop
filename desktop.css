@@ -102,6 +102,12 @@
     outline: 2px solid var(--accent);
     outline-offset: 1px;
 }
+/* The recolor row inside the tile menu: eight seeds on one line, breathing
+   like the buttons around them. */
+.tile-menu .tile-tint {
+    padding: 0.45rem 0.9rem 0.25rem;
+    width: 13rem;
+}
 
 /* Tile footprints, Windows-Phone style: the tile decides how much room it
    takes. Collapsed on narrow screens, where one column is the only sane

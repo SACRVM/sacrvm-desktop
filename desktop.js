@@ -90,12 +90,13 @@
 
             tile.append(icon, body, tileMenu(m));
             if (m.tile === "wide" || m.tile === "large") tile.classList.add("size-" + m.tile);
-            // Tile color = app highlight, the sac-launcher move: an app that
-            // declares its accent in the manifest carries it on its tile —
-            // icon and hover ring follow the seed, and opening through the
-            // tile hands the same seed to the app. No accent, no opinion:
-            // the tile stays in the desktop's palette.
-            if (m.accent) tile.style.setProperty("--accent", m.accent);
+            // Tile color = app highlight, the sac-launcher move: the seed
+            // re-themes icon and hover ring, and opening through the tile
+            // hands the same seed to the app. The desktop owner's override
+            // (tile menu) outranks the accent the manifest declares; with
+            // neither, the tile stays in the desktop's palette.
+            const seed = m.accentOverride || m.accent;
+            if (seed) tile.style.setProperty("--accent", seed);
             return tile;
         }));
 
@@ -141,13 +142,37 @@
                 (manifest.tile || "medium") === action.slice(5)) {
                 b.textContent = "✓ " + label;   // the current size, marked
             }
+            if (action === "tint:reset" && !manifest.accentOverride) {
+                b.textContent = "✓ " + label;   // no override = the app's own
+            }
             return b;
         };
+
+        /* The desktop's own eight seeds, as a recolor row. Swatch colors are
+           data here, not theme: each one is a whole accent seed the owner may
+           pin this app's tile (and the app it opens) to. */
+        const tint = document.createElement("sac-swatch-grid");
+        tint.setAttribute("columns", "8");
+        tint.setAttribute("selectable", "");
+        tint.className = "tile-tint";
+        ACCENTS.forEach((a) => {
+            const s = document.createElement("sac-swatch");
+            s.setAttribute("value", a.value);
+            s.setAttribute("label", a.label);
+            if ((manifest.accentOverride || "").toLowerCase() === a.value) {
+                s.setAttribute("selected", "");
+            }
+            tint.appendChild(s);
+        });
+        tint.addEventListener("sac:change", (e) => setTileAccent(manifest, e.detail.value));
 
         menu.append(
             item("size:medium", "Medium tile"),
             item("size:wide",   "Wide tile"),
             item("size:large",  "Large tile"),
+            document.createElement("hr"),
+            tint,
+            item("tint:reset", "App's own color"),
             document.createElement("hr"),
             item("remove", "Remove from this desktop", true),
         );
@@ -155,6 +180,7 @@
         menu.addEventListener("sac:select", (e) => {
             const action = e.detail.action;
             if (action === "remove") { uninstall(manifest); return; }
+            if (action === "tint:reset") { setTileAccent(manifest, null); return; }
             if (action.startsWith("size:")) setTileSize(manifest, action.slice(5));
         });
 
@@ -168,6 +194,23 @@
         if (!entry) return;
         entry.tile = size;
         save(installed);
+        renderTiles();
+    }
+
+    /* The registry gets the manifest with the owner's recolor folded in, so
+       every open path — tile click, deep link, reopen — seeds the app with
+       the effective color. The stored entry keeps both: the app's own accent
+       survives for "App's own color". */
+    const withAccent = (m) =>
+        m.accentOverride ? Object.assign({}, m, { accent: m.accentOverride }) : m;
+
+    function setTileAccent(manifest, value) {
+        const entry = installed.find((m) => m.id === manifest.id);
+        if (!entry) return;
+        if (value) entry.accentOverride = value;
+        else delete entry.accentOverride;
+        save(installed);
+        sac.apps.add(withAccent(entry));
         renderTiles();
     }
 
@@ -187,7 +230,10 @@
         // so an update (or a reinstall) inherits it instead of resetting it.
         const previous = installed.find((m) => m.id === manifest.id);
         if (previous && previous.tile && !manifest.tile) manifest.tile = previous.tile;
-        sac.apps.add(manifest);
+        // The owner's recolor is equally the desktop's decision — it survives
+        // an update or a reinstall the same way the tile size does.
+        if (previous && previous.accentOverride) manifest.accentOverride = previous.accentOverride;
+        sac.apps.add(withAccent(manifest));
         installed = installed.filter((m) => m.id !== manifest.id).concat(manifest);
         save(installed);
         renderTiles();
@@ -831,7 +877,7 @@
         // Register from the stored manifests: instant, offline, and no
         // network round trip before the desktop is usable. The app's own
         // script is still only fetched when you open it.
-        installed.forEach((m) => sac.apps.register(m));
+        installed.forEach((m) => sac.apps.register(withAccent(m)));
         renderTiles();
 
         applyAccent(storedAccent());
