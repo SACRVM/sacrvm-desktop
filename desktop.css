@@ -157,6 +157,8 @@
     margin-top: 0.3rem;
 }
 .settings .btn.danger { width: auto; align-self: flex-start; }
+.settings .accent-reset { width: auto; align-self: flex-start; }
+.settings .accent-reset[hidden] { display: none; }
 .settings .btn.danger[hidden] { display: none; }
 .hint {
     color: var(--text-dim);

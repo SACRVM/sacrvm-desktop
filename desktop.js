@@ -211,6 +211,16 @@
         else delete entry.accentOverride;
         save(installed);
         sac.apps.add(withAccent(entry));
+        // An app already on the page follows live — the same inline seed the
+        // kit plants on open. A view idles hidden in the DOM and keeps it; a
+        // window wears it on its frame.
+        const appEl = document.querySelector(entry.tag);
+        if (appEl) {
+            const target = appEl.closest("sac-window") || appEl;
+            const seed = entry.accentOverride || entry.accent;
+            if (seed) target.style.setProperty("--accent", seed);
+            else target.style.removeProperty("--accent");
+        }
         renderTiles();
     }
 
@@ -613,14 +623,13 @@
             <label>Theme</label>
             <sac-theme-toggle></sac-theme-toggle>
 
-            <label>Accent</label>
+            <label class="accent-label">Accent</label>
             <sac-swatch-grid columns="8" selectable class="accent-swatches">
                 ${ACCENTS.map((a) => `<sac-swatch value="${a.value}" label="${a.label}"></sac-swatch>`).join("")}
             </sac-swatch-grid>
             <sac-color-field label="Custom" class="accent-custom"></sac-color-field>
-            <p class="hint">One seed re-themes the whole desktop. An app that
-               brings its own accent keeps it — that is the app's identity, not
-               yours.</p>
+            <button type="button" class="btn accent-reset" hidden>App's own color</button>
+            <p class="hint accent-hint"></p>
 
             <label>This desktop</label>
             <p class="hint">Your apps and these settings live in this browser,
@@ -657,8 +666,11 @@
         avatarField.addEventListener("change", commitIdentity);
         nameField.addEventListener("keydown", (e) => { if (e.key === "Enter") nameField.blur(); });
 
-        const grid   = wrap.querySelector(".accent-swatches");
-        const custom = wrap.querySelector(".accent-custom");
+        const grid        = wrap.querySelector(".accent-swatches");
+        const custom      = wrap.querySelector(".accent-custom");
+        const accentLabel = wrap.querySelector(".accent-label");
+        const accentHint  = wrap.querySelector(".accent-hint");
+        const accentReset = wrap.querySelector(".accent-reset");
 
         const mark = (value) => {
             const v = (value || "#3b82f6").toLowerCase();
@@ -668,15 +680,48 @@
             if (custom.value.toLowerCase() !== v) custom.value = v;
         };
 
-        grid.addEventListener("sac:change", (e) => {
-            setAccent(e.detail.value);
-            mark(e.detail.value);
-        });
+        /* Which surface the section speaks for: null = the desktop, else the
+           installed entry of the view on stage. Opened from inside an app,
+           the swatches recolor THAT app — the change is visible right behind
+           the dialog, and it is the same override the tile menu writes. */
+        let accentCtx = null;
+
+        function paintAccent() {
+            const activeId = sac.apps.active();
+            accentCtx = activeId ? installed.find((m) => m.id === activeId) || null : null;
+            if (accentCtx) {
+                accentLabel.textContent = `Accent — ${accentCtx.name}`;
+                accentHint.textContent =
+                    `This recolors ${accentCtx.name} on this desktop: the app ` +
+                    `behind this dialog and its tile follow along. Your ` +
+                    `desktop's own accent is set from the home screen.`;
+                accentReset.hidden = !accentCtx.accentOverride;
+                mark(accentCtx.accentOverride || accentCtx.accent);
+            } else {
+                accentLabel.textContent = "Accent";
+                accentHint.textContent =
+                    "One seed re-themes the whole desktop. An app that brings " +
+                    "its own accent keeps it — that is the app's identity, not " +
+                    "yours, unless you repaint it from its tile or from in here.";
+                accentReset.hidden = true;
+                mark(storedAccent() || "#3b82f6");
+            }
+        }
+
+        const applyPick = (value) => {
+            if (accentCtx) {
+                setTileAccent(accentCtx, value);
+                accentReset.hidden = !value;
+                mark(value || accentCtx.accent);
+            } else {
+                setAccent(value);
+                mark(value);
+            }
+        };
         // The field fires only on user changes, so this cannot loop with mark().
-        custom.addEventListener("sac:change", (e) => {
-            setAccent(e.detail.value);
-            mark(e.detail.value);
-        });
+        grid.addEventListener("sac:change", (e) => applyPick(e.detail.value));
+        custom.addEventListener("sac:change", (e) => applyPick(e.detail.value));
+        accentReset.addEventListener("click", () => applyPick(null));
 
         wrap.querySelector(".remove-all").addEventListener("click", async () => {
             if (!installed.length) {
@@ -780,15 +825,16 @@
             showOrphans();
         });
 
-        // Recount on every opening: apps come and go between them.
-        dlg.addEventListener("sac:open", () => { showOrphans(); fillIdentity(); });
+        // Recount on every opening: apps come and go between them — and the
+        // accent section speaks for whatever is on stage right now.
+        dlg.addEventListener("sac:open", () => { showOrphans(); fillIdentity(); paintAccent(); });
         // A dialog dismissed with Escape still means what was typed in it.
         dlg.addEventListener("sac:action", commitIdentity);
         dlg.addEventListener("sac:action", () => { /* stays in the DOM */ });
 
         document.body.appendChild(dlg);
         settingsDialog = dlg;
-        mark(storedAccent() || "#3b82f6");
+        paintAccent();
         fillIdentity();
         dlg.open();
     }
