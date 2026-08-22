@@ -892,12 +892,13 @@
                 .filter((r) => r.hash !== "#/")
                 .map((r) => ({ label: r.label, href: r.hash, icon: r.icon })),
             // The home ribbon's buttons, carried into every app. The second
-            // entry is the SAME "you + this desktop" control as at home,
-            // spoken in the kit's icon-and-label vocabulary (the injection
-            // carries no avatars — yet).
+            // entry is the ONE "you + this desktop" control: the real avatar
+            // once somebody said who they are (2.1.0's avatar form — still
+            // data, the nav materializes the element), the gear until then.
             toolbar: [
                 { icon: "info", title: "How this works", onClick: openInfo },
-                me ? { icon: "user", label: me.name, title: `You: ${me.name} · Settings`, onClick: openSettings }
+                me ? { avatar: { name: me.name, src: me.avatar || undefined },
+                       title: `You: ${me.name} · Settings`, onClick: openSettings }
                    : { icon: "settings", title: "Settings", onClick: openSettings },
             ],
         };
