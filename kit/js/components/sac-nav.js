@@ -91,7 +91,10 @@ class SacNav extends HTMLElement {
         this._sections = [];
     }
 
-    /** The host's injection (see header). Assign context.host in mount(). */
+    /** The host's injection (see header). Assign context.host in mount().
+     *  A host may re-declare later (e.g. the signed-in user was renamed):
+     *  sac.apps mutates this same object in place and fires sac:host-changed,
+     *  which repaints the injected chrome without a fresh assignment here. */
     get host() { return this._host; }
     set host(v) {
         this._host = v || null;
@@ -163,6 +166,7 @@ class SacNav extends HTMLElement {
         if (this._hashHandler)  window.removeEventListener("hashchange", this._hashHandler);
         if (this._routeHandler) window.removeEventListener("sac:route-registered", this._routeHandler);
         if (this._scopeHandler) window.removeEventListener("sac:scope-changed", this._scopeHandler);
+        if (this._hostChangedHandler) document.removeEventListener("sac:host-changed", this._hostChangedHandler);
     }
 
     render() {
@@ -528,6 +532,17 @@ class SacNav extends HTMLElement {
         // Scope switch: hrefs pick up the new prefix, active-state moves.
         this._scopeHandler = () => this.render();
         window.addEventListener("sac:scope-changed", this._scopeHandler);
+
+        // The host re-declared its package after mount (e.g. the signed-in user
+        // was renamed). sac.apps mutated context.host — the very object held as
+        // this._host — in place and fired this event, so re-reading it repaints
+        // the ⌂ jump, the suite nav and the host toolbar. No app cooperation:
+        // the app handed its nav the host by reference and never touches it again.
+        this._hostChangedHandler = () => {
+            this._syncHostTools();
+            if (this.shadowRoot.firstChild) this.render();
+        };
+        document.addEventListener("sac:host-changed", this._hostChangedHandler);
     }
 }
 
