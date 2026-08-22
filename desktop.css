@@ -157,8 +157,11 @@
     margin-top: 0.3rem;
 }
 .settings .btn.danger { width: auto; align-self: flex-start; }
-.settings .accent-reset { width: auto; align-self: flex-start; }
-.settings .accent-reset[hidden] { display: none; }
+/* The two ways back for an app's accent, side by side. The row hides whole
+   at home, where the section speaks for the desktop itself. */
+.settings .accent-actions[hidden] { display: none; }
+.settings .accent-actions .btn { width: auto; }
+.settings .accent-actions .btn[hidden] { display: none; }
 .settings .btn.danger[hidden] { display: none; }
 .hint {
     color: var(--text-dim);

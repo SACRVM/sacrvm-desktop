@@ -93,9 +93,10 @@
             // Tile color = app highlight, the sac-launcher move: the seed
             // re-themes icon and hover ring, and opening through the tile
             // hands the same seed to the app. The desktop owner's override
-            // (tile menu) outranks the accent the manifest declares; with
-            // neither, the tile stays in the desktop's palette.
-            const seed = m.accentOverride || m.accent;
+            // (tile menu) outranks the accent the manifest declares; the
+            // "desktop" sentinel seeds nothing at all, so tile and app wear
+            // the desktop's palette and follow every later re-theme live.
+            const seed = effectiveAccent(m);
             if (seed) tile.style.setProperty("--accent", seed);
             return tile;
         }));
@@ -143,7 +144,10 @@
                 b.textContent = "✓ " + label;   // the current size, marked
             }
             if (action === "tint:reset" && !manifest.accentOverride) {
-                b.textContent = "✓ " + label;   // no override = the app's own
+                b.textContent = "✓ " + label;   // no override = as shipped
+            }
+            if (action === "tint:desktop" && followsDesktop(manifest)) {
+                b.textContent = "✓ " + label;
             }
             return b;
         };
@@ -172,7 +176,8 @@
             item("size:large",  "Large tile"),
             document.createElement("hr"),
             tint,
-            item("tint:reset", "App's own color"),
+            item("tint:reset",   "App's shipped color"),
+            item("tint:desktop", "Desktop's color"),
             document.createElement("hr"),
             item("remove", "Remove from this desktop", true),
         );
@@ -180,7 +185,8 @@
         menu.addEventListener("sac:select", (e) => {
             const action = e.detail.action;
             if (action === "remove") { uninstall(manifest); return; }
-            if (action === "tint:reset") { setTileAccent(manifest, null); return; }
+            if (action === "tint:reset")   { setTileAccent(manifest, null); return; }
+            if (action === "tint:desktop") { setTileAccent(manifest, FOLLOW_DESKTOP); return; }
             if (action.startsWith("size:")) setTileSize(manifest, action.slice(5));
         });
 
@@ -197,12 +203,29 @@
         renderTiles();
     }
 
+    /* The owner's recolor is one field with three states: absent (the app
+       wears the accent its manifest ships), a color (the owner's pick), or
+       this sentinel — "wear the desktop's". The sentinel never reaches any
+       CSS: it means seed NOTHING, so tile and app inherit :root and follow
+       every later desktop re-theme live, instead of freezing a snapshot. */
+    const FOLLOW_DESKTOP = "desktop";
+    const followsDesktop = (m) => m.accentOverride === FOLLOW_DESKTOP;
+    const effectiveAccent = (m) =>
+        followsDesktop(m) ? null : (m.accentOverride || m.accent);
+
     /* The registry gets the manifest with the owner's recolor folded in, so
        every open path — tile click, deep link, reopen — seeds the app with
-       the effective color. The stored entry keeps both: the app's own accent
-       survives for "App's own color". */
-    const withAccent = (m) =>
-        m.accentOverride ? Object.assign({}, m, { accent: m.accentOverride }) : m;
+       the effective color. Following the desktop folds in as ABSENCE: the
+       manifest's accent is stripped, and the kit seeds nothing. The stored
+       entry keeps both fields, so "App's shipped color" can always return. */
+    const withAccent = (m) => {
+        if (followsDesktop(m)) {
+            const copy = Object.assign({}, m);
+            delete copy.accent;
+            return copy;
+        }
+        return m.accentOverride ? Object.assign({}, m, { accent: m.accentOverride }) : m;
+    };
 
     function setTileAccent(manifest, value) {
         const entry = installed.find((m) => m.id === manifest.id);
@@ -217,7 +240,7 @@
         const appEl = document.querySelector(entry.tag);
         if (appEl) {
             const target = appEl.closest("sac-window") || appEl;
-            const seed = entry.accentOverride || entry.accent;
+            const seed = effectiveAccent(entry);
             if (seed) target.style.setProperty("--accent", seed);
             else target.style.removeProperty("--accent");
         }
@@ -632,7 +655,10 @@
                 ${ACCENTS.map((a) => `<sac-swatch value="${a.value}" label="${a.label}"></sac-swatch>`).join("")}
             </sac-swatch-grid>
             <sac-color-field label="Custom" class="accent-custom"></sac-color-field>
-            <button type="button" class="btn accent-reset" hidden>App's own color</button>
+            <div class="settings-actions accent-actions" hidden>
+                <button type="button" class="btn accent-reset" hidden>App's shipped color</button>
+                <button type="button" class="btn accent-desktop" hidden>Desktop's color</button>
+            </div>
             <p class="hint accent-hint"></p>
 
             <label>This desktop</label>
@@ -674,14 +700,18 @@
         const custom      = wrap.querySelector(".accent-custom");
         const accentLabel = wrap.querySelector(".accent-label");
         const accentHint  = wrap.querySelector(".accent-hint");
-        const accentReset = wrap.querySelector(".accent-reset");
+        const accentReset   = wrap.querySelector(".accent-reset");
+        const accentDesktop = wrap.querySelector(".accent-desktop");
+        const accentRow     = wrap.querySelector(".accent-actions");
 
+        // null = no swatch speaks for this surface (it follows the desktop):
+        // every mark comes off, and the custom field keeps its last color.
         const mark = (value) => {
-            const v = (value || "#3b82f6").toLowerCase();
+            const v = (value || "").toLowerCase();
             grid.querySelectorAll("sac-swatch").forEach((s) => {
-                s.toggleAttribute("selected", s.getAttribute("value").toLowerCase() === v);
+                s.toggleAttribute("selected", !!v && s.getAttribute("value").toLowerCase() === v);
             });
-            if (custom.value.toLowerCase() !== v) custom.value = v;
+            if (v && custom.value.toLowerCase() !== v) custom.value = v;
         };
 
         /* Which surface the section speaks for: null = the desktop, else the
@@ -705,17 +735,23 @@
                 accentHint.textContent =
                     `This recolors ${accentCtx.name} on this desktop: the app ` +
                     `behind this dialog and its tile follow along. Your ` +
-                    `desktop's own accent is set from the home screen.`;
+                    `desktop's own accent is set from the home screen.` +
+                    (followsDesktop(accentCtx)
+                        ? ` Right now it wears your desktop's accent and ` +
+                          `follows it live.`
+                        : "");
+                accentRow.hidden = false;
                 accentReset.hidden = !accentCtx.accentOverride;
-                mark(accentCtx.accentOverride || accentCtx.accent);
-                seedDialog(accentCtx.accentOverride || accentCtx.accent);
+                accentDesktop.hidden = followsDesktop(accentCtx);
+                mark(effectiveAccent(accentCtx));
+                seedDialog(effectiveAccent(accentCtx));
             } else {
                 accentLabel.textContent = "Accent";
                 accentHint.textContent =
                     "One seed re-themes the whole desktop. An app that brings " +
                     "its own accent keeps it — that is the app's identity, not " +
                     "yours, unless you repaint it from its tile or from in here.";
-                accentReset.hidden = true;
+                accentRow.hidden = true;
                 mark(storedAccent() || "#3b82f6");
                 seedDialog(null);
             }
@@ -723,10 +759,11 @@
 
         const applyPick = (value) => {
             if (accentCtx) {
+                // setTileAccent writes the entry accentCtx points at, so
+                // repainting the whole section reads the committed state —
+                // buttons, marks, hint and dialog seed in one move.
                 setTileAccent(accentCtx, value);
-                accentReset.hidden = !value;
-                mark(value || accentCtx.accent);
-                seedDialog(value || accentCtx.accent);
+                paintAccent();
             } else {
                 setAccent(value);
                 mark(value);
@@ -736,6 +773,7 @@
         grid.addEventListener("sac:change", (e) => applyPick(e.detail.value));
         custom.addEventListener("sac:change", (e) => applyPick(e.detail.value));
         accentReset.addEventListener("click", () => applyPick(null));
+        accentDesktop.addEventListener("click", () => applyPick(FOLLOW_DESKTOP));
 
         wrap.querySelector(".remove-all").addEventListener("click", async () => {
             if (!installed.length) {
