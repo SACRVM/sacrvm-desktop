@@ -90,6 +90,12 @@
 
             tile.append(icon, body, tileMenu(m));
             if (m.tile === "wide" || m.tile === "large") tile.classList.add("size-" + m.tile);
+            // Tile color = app highlight, the sac-launcher move: an app that
+            // declares its accent in the manifest carries it on its tile —
+            // icon and hover ring follow the seed, and opening through the
+            // tile hands the same seed to the app. No accent, no opinion:
+            // the tile stays in the desktop's palette.
+            if (m.accent) tile.style.setProperty("--accent", m.accent);
             return tile;
         }));
 
