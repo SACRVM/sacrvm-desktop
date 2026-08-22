@@ -597,6 +597,12 @@ a.nav-icon-btn { text-decoration: none; }
     border-radius: 999px;
     font-size: 0.8rem;
 }
+/* The avatar variant: the button wears an identity <sac-avatar> instead of an
+   icon glyph — a signed-in user in the ribbon (sac-nav host tools). The base
+   button is already a round, padding-0 target and the avatar carries its own
+   round shape, so this only sizes the avatar to sit inside with the usual
+   hover ring. Combines with .labeled (avatar + name in the pill). */
+.nav-icon-btn.avatar { --avatar-size: 26px; }
 
 /* --------------------------------------------------------------------------
    9. Panels, cards, menus, logs (CSS patterns — documented in the style guide)

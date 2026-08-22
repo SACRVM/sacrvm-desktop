@@ -35,12 +35,17 @@
  *                   nav:     [{label, href, icon?}],       → a labeled host
  *                            group at the top of the burger panel (the
  *                            suite's cross-app navigation)
- *                   toolbar: [{icon, label?, title?, href? | onClick?}] }
+ *                   toolbar: [{icon | avatar:{name, src?},
+ *                              label?, title?, href? | onClick?}] }
  *                            → host controls at the right end of the ribbon
  *                            (a signed-in user, a suite-wide action, …).
- *                            Rendered as light-DOM .nav-icon-btn elements —
- *                            the same ui.css recipe as the app's own ribbon
- *                            buttons, so the two always look alike.
+ *                            An entry wears EITHER an `icon` (sac.icons name)
+ *                            or an `avatar` ({name, src?} → a <sac-avatar>, so
+ *                            a signed-in user looks like one); `label` may
+ *                            accompany either. Rendered as light-DOM
+ *                            .nav-icon-btn elements — the same ui.css recipe
+ *                            as the app's own ribbon buttons, so the two
+ *                            always look alike.
  *          Everything is rendered by the APP'S OWN nav — the host supplies
  *          data, it never paints. null/absent = standalone, nothing renders.
  *
@@ -105,13 +110,21 @@ class SacNav extends HTMLElement {
         const tools = (this._host && Array.isArray(this._host.toolbar)) ? this._host.toolbar : [];
         tools.forEach((tb) => {
             const el = document.createElement(tb.href ? "a" : "button");
-            el.className = "nav-icon-btn" + (tb.label ? " labeled" : "");
+            el.className = "nav-icon-btn" + (tb.label ? " labeled" : "") +
+                          (tb.avatar ? " avatar" : "");
             el.slot = "host-tools";
             el.dataset.sacHostTool = "";
             el.title = tb.title || tb.label || "";
             if (tb.href) el.href = tb.href;
             else el.type = "button";
-            if (tb.icon) {
+            // An identity avatar wins over an icon glyph — a signed-in user
+            // wears their own badge; everything else is an icon, as before.
+            if (tb.avatar && tb.avatar.name != null) {
+                const av = document.createElement("sac-avatar");
+                av.setAttribute("name", tb.avatar.name);
+                if (tb.avatar.src) av.setAttribute("src", tb.avatar.src);
+                el.appendChild(av);
+            } else if (tb.icon) {
                 const ic = document.createElement("sac-icon");
                 ic.setAttribute("name", tb.icon);
                 el.appendChild(ic);
