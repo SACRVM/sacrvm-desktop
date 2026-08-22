@@ -606,6 +606,10 @@
         const dlg = document.createElement("sac-dialog");
         dlg.setAttribute("title", "Settings");
         dlg.buttons = [{ action: "done", label: "Done", kind: "primary" }];
+        // The dialog is its own accent scope (the kit re-derives the accent
+        // family on .sac-app elements): opened from an app it wears THAT
+        // surface's color, at home it inherits the desktop's.
+        dlg.classList.add("sac-app");
 
         const wrap = document.createElement("div");
         wrap.className = "settings";
@@ -686,6 +690,13 @@
            the dialog, and it is the same override the tile menu writes. */
         let accentCtx = null;
 
+        // The dialog wears the color it speaks for — its chrome follows the
+        // app context, or falls back to inheriting the desktop's seed.
+        const seedDialog = (color) => {
+            if (color) dlg.style.setProperty("--accent", color);
+            else dlg.style.removeProperty("--accent");
+        };
+
         function paintAccent() {
             const activeId = sac.apps.active();
             accentCtx = activeId ? installed.find((m) => m.id === activeId) || null : null;
@@ -697,6 +708,7 @@
                     `desktop's own accent is set from the home screen.`;
                 accentReset.hidden = !accentCtx.accentOverride;
                 mark(accentCtx.accentOverride || accentCtx.accent);
+                seedDialog(accentCtx.accentOverride || accentCtx.accent);
             } else {
                 accentLabel.textContent = "Accent";
                 accentHint.textContent =
@@ -705,6 +717,7 @@
                     "yours, unless you repaint it from its tile or from in here.";
                 accentReset.hidden = true;
                 mark(storedAccent() || "#3b82f6");
+                seedDialog(null);
             }
         }
 
@@ -713,6 +726,7 @@
                 setTileAccent(accentCtx, value);
                 accentReset.hidden = !value;
                 mark(value || accentCtx.accent);
+                seedDialog(value || accentCtx.accent);
             } else {
                 setAccent(value);
                 mark(value);
