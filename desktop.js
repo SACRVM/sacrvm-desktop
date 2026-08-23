@@ -985,9 +985,35 @@
         if (nav) nav.host = { toolbar: hostPackage().toolbar };
     }
 
+    /* Window apps into the Ctrl-K palette. The palette lists every registered
+       route live, so view apps come free — but a window app has no route, and
+       this is its summon-from-anywhere entry: Calculator over your notes,
+       without leaving them. Upsert by id; ids the desktop once registered and
+       no longer wants are unregistered, and the prefix keeps the desktop out
+       of any app's own command namespace. */
+    function syncCommands() {
+        if (!window.sac || !sac.commands) return;
+        const wanted = new Map(installed
+            .filter((m) => m.kind !== "view")
+            .map((m) => ["desktop:open:" + m.id, m]));
+        sac.commands.list().forEach((c) => {
+            if (c.id.startsWith("desktop:open:") && !wanted.has(c.id)) {
+                sac.commands.unregister(c.id);
+            }
+        });
+        wanted.forEach((m, id) => sac.commands.register({
+            id,
+            label: `Open ${m.name}`,
+            icon: m.icon || "cube",
+            group: "Apps",
+            run: () => sac.apps.open(m.id),
+        }));
+    }
+
     function declareHost() {
         sac.apps.init({ host: hostPackage() });
         paintHomeTools();
+        syncCommands();
     }
 
     /* --------------------------------------------------------------- boot */
@@ -1008,6 +1034,7 @@
             host: hostPackage(),
         });
         paintHomeTools();
+        syncCommands();   // boot inits by hand, so the palette syncs by hand too
         // Identity is part of the package (the you-button in both ribbons).
         if (window.sac.identity) sac.identity.onChange(declareHost);
 
