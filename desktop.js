@@ -899,7 +899,9 @@
 
     async function openInfo() {
         const answer = await sac.dialog.confirm({
-            title: "How this works",
+            // Named like its button: opened from inside an app, the title is
+            // what says this speaks for the desktop, not for the app.
+            title: "About SACRVM DESKTOP",
             message: [
                 "This desktop is yours, and only in this browser. Apps and " +
                 "settings live in this browser's storage — there is no " +
@@ -948,7 +950,10 @@
             // once somebody said who they are (2.1.0's avatar form — still
             // data, the nav materializes the element), the gear until then.
             toolbar: [
-                { icon: "info", title: "How this works", onClick: openInfo },
+                // The subject is IN the tooltip: injected, this button sits in
+                // a ribbon that may hold the app's own info entry too, and a
+                // bare label cannot say which of the two it reaches.
+                { icon: "info", title: "About SACRVM DESKTOP", onClick: openInfo },
                 me ? { avatar: { name: me.name, src: me.avatar || undefined },
                        title: `You: ${me.name} · Settings`, onClick: openSettings }
                    : { icon: "settings", title: "Settings", onClick: openSettings },
