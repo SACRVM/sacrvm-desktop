@@ -956,18 +956,18 @@
         const me = window.sac.identity ? sac.identity.get() : null;
         return {
             name: "SACRVM DESKTOP", icon: "cube", href: "#/",
-            // The app list, the way the home grid has it: view apps are
-            // addresses the router already knows; window apps ride as the
-            // same ?app= href their tiles advertise. The kit opens those in
-            // place on a plain click (2.3.1) — a modified/middle click keeps
-            // the anchor, a new tab whose deep link opens the window there.
-            nav: sac.router.routes()
-                .filter((r) => r.hash !== "#/")
-                .map((r) => ({ label: r.label, href: r.hash, icon: r.icon }))
-                .concat(installed
-                    .filter((m) => m.kind !== "view")
-                    .map((m) => ({ label: m.name, icon: m.icon || "cube",
-                                   href: `?app=${encodeURIComponent(m.id)}` }))),
+            // The app list, the way the home grid has it — SAME apps, SAME
+            // order, straight from the installed list the grid renders. Each
+            // entry rides the href its tile advertises: views are hash
+            // addresses, window apps are ?app= links the kit opens in place
+            // on a plain click (2.3.1) — a modified/middle click keeps the
+            // anchor, a new tab whose deep link opens the window there.
+            nav: installed.map((m) => ({
+                label: m.name,
+                icon: m.icon || "cube",
+                href: m.kind === "view" ? `#/${m.id}`
+                                        : `?app=${encodeURIComponent(m.id)}`,
+            })),
             // The home ribbon's buttons, carried into every app. The second
             // entry is the ONE "you + this desktop" control: the real avatar
             // once somebody said who they are (2.1.0's avatar form — still
