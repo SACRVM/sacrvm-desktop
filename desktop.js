@@ -952,6 +952,10 @@
        already on stage keeps the snapshot it mounted with; the next one
        opened sees the new package. */
 
+    // The key the user actually has: the palette binds mod+k, which is ⌘K
+    // on a Mac and Ctrl-K everywhere else.
+    const PALETTE_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform) ? "⌘K" : "Ctrl K";
+
     function hostPackage() {
         const me = window.sac.identity ? sac.identity.get() : null;
         return {
@@ -973,6 +977,11 @@
             // once somebody said who they are (2.1.0's avatar form — still
             // data, the nav materializes the element), the gear until then.
             toolbar: [
+                // The palette, made visible: Ctrl-K is a power feature nobody
+                // can see. The button is the affordance, its tooltip teaches
+                // the key — the platform's own (⌘K on a Mac), not ours.
+                { icon: "search", title: `Apps & commands — ${PALETTE_KEY}`,
+                  onClick: () => { if (window.sac.palette) sac.palette.open(); } },
                 // The subject is IN the tooltip: injected, this button sits in
                 // a ribbon that may hold the app's own info entry too, and a
                 // bare label cannot say which of the two it reaches.
