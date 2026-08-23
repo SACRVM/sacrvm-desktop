@@ -3,6 +3,7 @@ Thumbs.db
 node_modules/
 
 # Firepit + Claude Code — shared config versioned, runtime/personal local
+.mcp.json
 .firepit/inbox/
 .firepit/runs/
 .firepit/knowledge.db*
