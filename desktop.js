@@ -893,38 +893,54 @@
 
     /* --------------------------------------------------------------- info */
 
-    /* Three short paragraphs for the three questions people actually ask.
-       Everything beyond them lives on how.html — a page can scroll, a modal
-       should not have to. */
+    /* The host's About, on the kit's shared About surface — the same
+       component every app's About uses, so the two look related by
+       construction. The three notices answer the three questions people
+       actually ask; everything beyond them lives on how.html. */
 
-    async function openInfo() {
-        const answer = await sac.dialog.confirm({
-            // Named like its button: opened from inside an app, the title is
-            // what says this speaks for the desktop, not for the app.
-            title: "About SACRVM DESKTOP",
-            message: [
-                "This desktop is yours, and only in this browser. Apps and " +
-                "settings live in this browser's storage — there is no " +
-                "server and no account. Another visitor to this address " +
-                "sees an empty desktop.",
-
-                "Installing is remembering a URL. The desktop reads the " +
-                "app's manifest from the address you paste — a fetch, not " +
-                "an execution — and shows what it says before you confirm. " +
-                "The app's code loads only when you first open it, and " +
-                "removing an app forgets the address again.",
-
-                "An installed app runs its own code in this page. Install " +
-                "what you trust, the way you would a browser extension — " +
-                "the origin is on every tile for exactly that reason.",
-            ],
-            buttons: [
-                { action: "more", label: "The long version", kind: "default" },
-                { action: "ok", label: "Got it", kind: "primary" },
+    function openInfo() {
+        const win = sac.about.open({
+            name: "SACRVM DESKTOP",
+            icon: "cube",
+            description: "A desktop you fill yourself — every app on it " +
+                "comes from somebody else's repository.",
+            notices: [
+                { title: "Yours, in this browser",
+                  text: "Apps and settings live in this browser's storage — " +
+                        "there is no server and no account. Another visitor " +
+                        "to this address sees an empty desktop." },
+                { title: "Installing is remembering a URL",
+                  text: "The desktop reads the app's manifest from the " +
+                        "address you paste — a fetch, not an execution — and " +
+                        "shows what it says before you confirm. The app's " +
+                        "code loads only when you first open it, and " +
+                        "removing an app forgets the address again." },
+                { title: "What an app may do",
+                  text: "An installed app runs its own code in this page. " +
+                        "Install what you trust, the way you would a browser " +
+                        "extension — the origin is on every tile for exactly " +
+                        "that reason." },
+                { title: "Built on",
+                  text: "SACRVM APPKIT, MIT — vendored verbatim in this " +
+                        "repository; kit/VERSION names the release. Its own " +
+                        "third-party notices live in the appkit repository." },
             ],
         });
-        // A new tab, so whatever is on stage stays on stage.
-        if (answer === "more") window.open("how.html", "_blank", "noopener");
+        // The long version, as a link the surface itself cannot carry
+        // (notice text is third-party in general, so the kit renders it
+        // inert). One append, guarded — reopening resurfaces this window.
+        const body = win.querySelector(".sac-about");
+        if (body && !body.querySelector(".about-more")) {
+            const p = document.createElement("p");
+            p.className = "hint about-more";
+            const a = document.createElement("a");
+            a.href = "how.html";
+            a.target = "_blank";
+            a.rel = "noopener";
+            a.textContent = "The long version — how this works, in full";
+            p.appendChild(a);
+            body.appendChild(p);
+        }
     }
 
     /* --------------------------------------------------------------- host */
