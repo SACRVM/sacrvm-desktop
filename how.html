@@ -14,9 +14,34 @@
     <!-- The kit renders the ribbon and the footer here too; the desktop's own
          script stays home — this page is prose, not shell. -->
     <script defer src="kit/js/all.js"></script>
+
+    <script defer>
+        // The burger is this page's table of contents — built FROM the
+        // headings, so it cannot drift from the prose. Gated on sac:ready:
+        // assigning .sections before the element upgrades would shadow the
+        // class setter with an own property and render nothing.
+        function toc() {
+            document.querySelector("sac-nav").sections =
+                [...document.querySelectorAll(".doc section[id]")].map((s) => ({
+                    // Full-path form, not "#id": bare-hash hrefs go through
+                    // the nav's route scoping ("#x" becomes "#/x") — these
+                    // are fragment jumps on THIS page, so they carry their
+                    // own path and stay exactly what they say.
+                    label: s.querySelector("h2").textContent,
+                    href: location.pathname + "#" + s.id,
+                }));
+        }
+        if (window.sacReady) toc();
+        else document.addEventListener("sac:ready", toc, { once: true });
+    </script>
 </head>
 <body>
-    <sac-nav brand="SACRVM DESKTOP" brand-icon="cube" brand-href="./"></sac-nav>
+    <!-- host-* attributes: the standalone spelling of the host group, so this
+         page reads like an app of the desktop — host brand first, then this
+         page's own name, and a burger that opens the same way an app's does:
+         the way home on top, the local sections below. -->
+    <sac-nav brand="How this works" brand-icon="info" brand-href="how.html"
+             host-href="./" host-label="SACRVM DESKTOP" host-icon="cube"></sac-nav>
 
     <div class="hub-container">
         <header>
@@ -27,7 +52,7 @@
         </header>
 
         <main class="doc">
-            <section>
+            <section id="whose">
                 <h2>Whose desktop is this?</h2>
                 <p><strong>Yours, and only in this browser.</strong> Your installed
                    apps and settings live in this browser's storage, on this device.
@@ -37,7 +62,7 @@
                    it somewhere.</p>
             </section>
 
-            <section>
+            <section id="origins">
                 <h2>Where do the apps live?</h2>
                 <p>At their own origin — <code>owner.github.io/repo/</code> — never
                    here. Installing stores the address and the manifest that was read
@@ -47,7 +72,7 @@
                    on GitHub.</p>
             </section>
 
-            <section>
+            <section id="your-data">
                 <h2>And what you write in them?</h2>
                 <p>Also here, in this browser — each app gets its own drawer, and it
                    can only reach its own. Removing an app <strong>keeps</strong> what
@@ -57,7 +82,7 @@
                    up.</p>
             </section>
 
-            <section>
+            <section id="which-apps">
                 <h2>Which apps can go on it?</h2>
                 <p><strong>SACRVM APPKIT apps — and only those.</strong> Concretely: a
                    repository whose GitHub Pages serves an <code>app.json</code> in its
@@ -70,7 +95,7 @@
                    install.</p>
             </section>
 
-            <section>
+            <section id="installing">
                 <h2>What installing does</h2>
                 <ol class="steps">
                     <li>You paste <code>github.com/owner/repo</code>.</li>
@@ -88,7 +113,7 @@
                    on every tile for exactly that reason.</p>
             </section>
 
-            <section>
+            <section id="opening">
                 <h2>Opening apps, from anywhere</h2>
                 <p>The tile is only the first door. Once installed, an app is
                    reachable without going home:</p>
@@ -109,7 +134,7 @@
                    this desktop answers them, current and future ones alike.</p>
             </section>
 
-            <section>
+            <section id="get-started">
                 <h2>Nothing to open yet?</h2>
                 <p>Two example apps show the two kinds of app there are. Each link runs
                    the ordinary install flow — manifest and origin shown, your
