@@ -273,6 +273,35 @@
         declareHost();
     }
 
+    /* Refresh-on-open. The tile bakes the manifest snapshot from install
+       day, but the code an app runs is fetched live from its origin — so
+       the version line drifts. Opening an app contacts its origin anyway,
+       and THAT is the one moment the desktop may re-read app.json at no
+       new privacy cost. An app never opened keeps its old label, which is
+       honest: its code is the old one too. Once per app per session. */
+    const refreshed = new Set();
+
+    async function refreshManifest(id) {
+        const entry = installed.find((m) => m.id === id);
+        if (!entry || !entry.manifestUrl || refreshed.has(id)) return;
+        refreshed.add(id);
+        let fresh;
+        try { fresh = await sac.apps.inspect(entry.manifestUrl); }
+        catch (err) { return; }        // offline or gone: the snapshot stays
+        // The same address suddenly serving a DIFFERENT app is not an
+        // update — installing consented to one id, not to one URL.
+        if (fresh.id !== entry.id) return;
+        // The desktop owner's decisions ride along, like on a reinstall.
+        if (entry.tile) fresh.tile = entry.tile;
+        if (entry.accentOverride) fresh.accentOverride = entry.accentOverride;
+        // Replace IN PLACE — a background refresh must never reorder tiles.
+        installed = installed.map((m) => (m.id === id ? fresh : m));
+        save(installed);
+        sac.apps.add(withAccent(fresh));
+        renderTiles();
+        declareHost();
+    }
+
     async function install(input) {
         let manifest;
         try {
@@ -1022,7 +1051,7 @@
             label: `Open ${m.name}`,
             icon: m.icon || "cube",
             group: "Apps",
-            run: () => sac.apps.open(m.id),
+            run: () => { refreshManifest(m.id); sac.apps.open(m.id); },
         }));
     }
 
@@ -1036,6 +1065,9 @@
 
     function boot() {
         installed = load();
+        // The ?app= deep link, captured before sac.apps.init() strips it —
+        // arriving on it IS opening that app, so its snapshot refreshes too.
+        const deepApp = new URLSearchParams(location.search).get("app");
         // Register from the stored manifests: instant, offline, and no
         // network round trip before the desktop is usable. The app's own
         // script is still only fetched when you open it.
@@ -1051,6 +1083,27 @@
         });
         paintHomeTools();
         syncCommands();   // boot inits by hand, so the palette syncs by hand too
+        if (deepApp) refreshManifest(deepApp);
+
+        // Refresh-on-open, wired to every door. Views announce themselves
+        // (sac:apps-changed fires on every show, deep links included). A
+        // window app opens by a click on some ?app= / [data-app] anchor —
+        // tile, burger entry, wherever: composedPath() sees the anchor even
+        // inside sac-nav's shadow root, where retargeting hides it from
+        // closest(). Observation only — the kit's own handlers do the
+        // opening, and the once-per-session set absorbs the overlap.
+        document.addEventListener("sac:apps-changed", (e) => {
+            if (e.detail.type === "view" && e.detail.id) refreshManifest(e.detail.id);
+        });
+        document.addEventListener("click", (e) => {
+            for (const el of e.composedPath()) {
+                if (!(el instanceof HTMLElement)) continue;
+                const href = el.tagName === "A" ? (el.getAttribute("href") || "") : "";
+                const id = (el.dataset && el.dataset.app) ||
+                    (href.startsWith("?app=") ? new URLSearchParams(href).get("app") : null);
+                if (id) { refreshManifest(id); return; }
+            }
+        });
         // Identity is part of the package (the you-button in both ribbons).
         if (window.sac.identity) sac.identity.onChange(declareHost);
 
