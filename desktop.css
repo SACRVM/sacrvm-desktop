@@ -48,7 +48,21 @@
     white-space: nowrap;
 }
 
-/* how.html — the long version: one measured column of prose. */
+/* how.html — the long version: chapter rail beside one measured column of
+   prose. NOT body.app-page: that recipe kills text selection, and a doc
+   page exists to be read and copied from. Same frame, selection kept. */
+.doc-page {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.doc-scroll { flex: 1; min-width: 0; overflow-y: auto; }
+/* Narrow screens: the burger carries the chapters, the rail steps aside. */
+@media (max-width: 700px) {
+    .doc-page sac-sidebar { display: none; }
+}
+
 .doc {
     max-width: 72ch;
     padding-bottom: 3rem;

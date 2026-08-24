@@ -16,35 +16,71 @@
     <script defer src="kit/js/all.js"></script>
 
     <script defer>
-        // The burger is this page's table of contents — built FROM the
-        // headings, so it cannot drift from the prose. Gated on sac:ready:
-        // assigning .sections before the element upgrades would shadow the
-        // class setter with an own property and render nothing.
+        // The chapters, in both places the convention puts them: the visible
+        // rail beside the prose, and the burger — nested under this page's
+        // own entry, the way an app's sections nest in its suite tree. Both
+        // lists are built FROM the headings, so neither can drift from the
+        // prose. Gated on sac:ready: assigning component properties before
+        // the elements upgrade would shadow the class setters.
         function toc() {
-            document.querySelector("sac-nav").sections =
-                [...document.querySelectorAll(".doc section[id]")].map((s) => ({
-                    // Full-path form, not "#id": bare-hash hrefs go through
-                    // the nav's route scoping ("#x" becomes "#/x") — these
-                    // are fragment jumps on THIS page, so they carry their
-                    // own path and stay exactly what they say.
-                    label: s.querySelector("h2").textContent,
-                    href: location.pathname + "#" + s.id,
-                }));
+            const sections = [...document.querySelectorAll(".doc section[id]")];
+            const chapters = sections.map((s) => ({
+                // Full-path form, not "#id": bare-hash hrefs go through the
+                // nav's route scoping ("#x" becomes "#/x") — these are
+                // fragment jumps on THIS page, so they carry their own path
+                // and stay exactly what they say.
+                label: s.querySelector("h2").textContent,
+                href: location.pathname + "#" + s.id,
+                id: s.id,
+            }));
+
+            // Burger: one tree — the suite, with this page unfolded. The
+            // page's entry matches the current address, so the nav nests the
+            // sections under it as sub-entries.
+            const nav = document.querySelector("sac-nav");
+            nav.host = {
+                href: "./", name: "SACRVM DESKTOP", icon: "cube",
+                nav: [{ label: "How this works", href: location.pathname, icon: "info" }],
+            };
+            nav.sections = chapters.map(({ label, href }) => ({ label, href }));
+
+            // Rail: the same chapters, always in sight, following the read.
+            const rail = document.querySelector("sac-sidebar");
+            const scroller = document.querySelector(".doc-scroll");
+            let activeId = null;
+            const paint = () => {
+                rail.items = [{ section: "Chapters" }].concat(chapters.map((c) => ({
+                    label: c.label, href: c.href, active: c.id === activeId,
+                })));
+            };
+            const spy = () => {
+                // The chapter being read: the last one whose top passed the
+                // reading line under the fixed ribbon.
+                let current = sections[0];
+                for (const s of sections) {
+                    if (s.getBoundingClientRect().top <= 140) current = s;
+                }
+                if (current.id !== activeId) { activeId = current.id; paint(); }
+            };
+            scroller.addEventListener("scroll", spy, { passive: true });
+            spy();
         }
         if (window.sacReady) toc();
         else document.addEventListener("sac:ready", toc, { once: true });
     </script>
 </head>
-<body>
-    <!-- host-* attributes: the standalone spelling of the host group, so this
-         page reads like an app of the desktop — host brand first, then this
-         page's own name, and a burger that opens the same way an app's does:
-         the way home on top, the local sections below. -->
+<body class="doc-page">
+    <!-- host-* attributes: the standalone spelling of the host group — the
+         ribbon reads host brand first, then this page's own name, before the
+         script above hands the nav the full tree. -->
     <sac-nav brand="How this works" brand-icon="info" brand-href="how.html"
              host-href="./" host-label="SACRVM DESKTOP" host-icon="cube"></sac-nav>
 
-    <div class="hub-container">
-        <header>
+    <div class="main-layout">
+        <sac-sidebar width="240px"></sac-sidebar>
+        <div class="doc-scroll">
+            <div class="hub-container">
+                <header>
             <h1>How this works</h1>
             <p class="intro-text">The long version of About SACRVM DESKTOP.
                The short one sits behind the (i) in the ribbon —
@@ -154,9 +190,11 @@
                    repository</a> to start from (<em>Use this template</em>).</p>
             </section>
         </main>
-    </div>
+            </div>
 
-    <sac-footer brand="SACRVM DESKTOP"
-                link-href="https://github.com/SACRVM/sacrvm-desktop" link-label="GITHUB"></sac-footer>
+            <sac-footer brand="SACRVM DESKTOP"
+                        link-href="https://github.com/SACRVM/sacrvm-desktop" link-label="GITHUB"></sac-footer>
+        </div>
+    </div>
 </body>
 </html>
