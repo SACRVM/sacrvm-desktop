@@ -1117,9 +1117,13 @@
         }
 
         // First visit, empty desktop, no app in the address: make the offer.
-        // A beat after paint, so the desktop is seen before it asks anything —
-        // and a timeout, not rAF, which never fires in a background tab.
-        if (!installed.length && !welcomed() && !location.hash) {
+        // "#/" counts as no address — it IS home, written by the desktop on
+        // every jump there, and browsers happily autocomplete it from the
+        // history; only a real app deep link holds the offer back. A beat
+        // after paint, so the desktop is seen before it asks anything — and
+        // a timeout, not rAF, which never fires in a background tab.
+        const atHome = !location.hash || location.hash === "#/" || location.hash === "#";
+        if (!installed.length && !welcomed() && atHome) {
             setTimeout(openWelcome, 500);
         }
     }
