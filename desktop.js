@@ -350,11 +350,10 @@
         return manifest;
     }
 
-    /** What an app has stored here, as a sentence — or null if it stored nothing. */
-    async function dataOf(manifest) {
-        if (!window.sac || !sac.fs) return null;
+    /** What a storage handle holds, as a sentence — or null if it is empty. */
+    async function usageOf(handle) {
         try {
-            const { bytes, count } = await sac.fs.for(manifest.id).usage();
+            const { bytes, count } = await handle.usage();
             if (!count) return null;
             const size = bytes < 1024 ? `${bytes} bytes`
                        : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB`
@@ -364,6 +363,17 @@
             return null;
         }
     }
+
+    /** What an app has stored here — or null if it stored nothing. */
+    async function dataOf(manifest) {
+        if (!window.sac || !sac.fs) return null;
+        return usageOf(sac.fs.for(manifest.id));
+    }
+
+    /* The user's files: the one space every app's Open… / Save as… lands in
+       (sac.files.virtual() over sac.fs.shared("files")). It belongs to no
+       app, so no app's remove ever touches it — only Settings does. */
+    const userFiles = () => (window.sac && sac.fs ? sac.fs.shared("files") : null);
 
     async function uninstall(manifest) {
         // Data is a second decision, never a side effect: removing an app is
@@ -694,9 +704,11 @@
             <p class="hint">Your apps and these settings live in this browser,
                on this device. Nobody else sees them, and there is no account
                to lose them with.</p>
+            <p class="hint files-line"></p>
             <p class="hint orphans" hidden></p>
             <div class="settings-actions">
                 <button type="button" class="btn danger remove-all">Remove all apps</button>
+                <button type="button" class="btn danger clear-files" hidden>Delete your files</button>
                 <button type="button" class="btn danger clear-orphans" hidden>Delete leftover data</button>
             </div>
         `;
@@ -906,9 +918,47 @@
             showOrphans();
         });
 
+        /* The user's files. Not an app's drawer, so neither a remove nor the
+           leftovers above ever reach them — this line is the one place they
+           are counted and the one button that deletes them. */
+        const filesLine = wrap.querySelector(".files-line");
+        const filesBtn  = wrap.querySelector(".clear-files");
+
+        async function showFiles() {
+            const store = userFiles();
+            const data = store ? await usageOf(store) : null;
+            filesBtn.hidden = !data;
+            filesLine.textContent = data
+                ? `Your files — what apps open from and save to — are here too: ` +
+                  `${data.text}, shared by every app on this desktop.`
+                : "Files you save from an app land here too, in one space every " +
+                  "app on this desktop shares. Nothing is saved yet.";
+        }
+
+        filesBtn.addEventListener("click", async () => {
+            const store = userFiles();
+            const data = store ? await usageOf(store) : null;
+            if (!data) { showFiles(); return; }
+            const answer = await sac.dialog.confirm({
+                title: "Delete your files?",
+                message:
+                    `The ${data.text} every app on this desktop opens from and saves ` +
+                    `to are deleted from this browser. Files you saved to this device ` +
+                    `instead are not touched.\n\nIt cannot be undone.`,
+                buttons: [
+                    { action: "cancel", label: "Cancel", kind: "default" },
+                    { action: "purge", label: "Delete", kind: "destructive", armAfterMs: 1200 },
+                ],
+            });
+            if (answer !== "purge") return;
+            try { await store.clear(); }
+            catch (err) { console.warn("[desktop] could not delete the user's files:", err); }
+            showFiles();
+        });
+
         // Recount on every opening: apps come and go between them — and the
         // accent section speaks for whatever is on stage right now.
-        dlg.addEventListener("sac:open", () => { showOrphans(); fillIdentity(); paintAccent(); });
+        dlg.addEventListener("sac:open", () => { showOrphans(); showFiles(); fillIdentity(); paintAccent(); });
         // A dialog dismissed with Escape still means what was typed in it.
         dlg.addEventListener("sac:action", commitIdentity);
         dlg.addEventListener("sac:action", () => { /* stays in the DOM */ });
@@ -917,6 +967,7 @@
         settingsDialog = dlg;
         paintAccent();
         fillIdentity();
+        showFiles();
         dlg.open();
     }
 
@@ -935,7 +986,8 @@
                 "comes from somebody else's repository.",
             notices: [
                 { title: "Yours, in this browser",
-                  text: "Apps and settings live in this browser's storage — " +
+                  text: "Apps, settings and the files you save live in this " +
+                        "browser's storage — " +
                         "there is no server and no account. Another visitor " +
                         "to this address sees an empty desktop." },
                 { title: "Installing is remembering a URL",
@@ -1075,6 +1127,12 @@
         renderTiles();
 
         applyAccent(storedAccent());
+
+        // A desktop is a place with its own files: every app's Open… /
+        // Save as… (context.files) goes to one shared space in this browser,
+        // with the device one click away in the same dialog. Installed
+        // before init, so no app ever mounts against the plain default.
+        if (sac.files) sac.files.use(sac.files.virtual());
 
         sac.apps.init({
             viewHost: "#app-stage",
