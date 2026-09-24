@@ -572,10 +572,6 @@
                 </sac-tab-panel>
                 <sac-tab-panel name="store">
                     <div class="installer-panel store">
-                        <p class="hint">SACRVM's own apps. This tab asks GitHub which
-                           repositories carry the ${STORE_TOPIC} topic and reads each one's
-                           manifest — a fetch, nothing runs. Installing still shows you the
-                           app and waits for your yes.</p>
                         <p class="store-status" hidden></p>
                         <ul class="store-list"></ul>
                     </div>
