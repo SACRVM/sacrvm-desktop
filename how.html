@@ -2,7 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- viewport-fit=cover: the page runs under a phone's notch and home bar;
+         the kit pads its nav and scroll regions by the safe-area insets. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- Browser chrome colour: mirrors the kit's --bg seeds (dark / light),
+         because a meta tag cannot read a custom property. -->
+    <meta name="theme-color" content="#0b0f1a" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#eef2f7" media="(prefers-color-scheme: light)">
     <title>How this works — SACRVM DESKTOP</title>
     <meta name="description" content="What installing means on SACRVM DESKTOP, where apps and their data live, and what leaves this browser: nothing.">
 
