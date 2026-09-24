@@ -140,19 +140,13 @@
                    to read, and pasting it will politely fail. There is no review queue,
                    no approval and no account. If it has a manifest, it installs; if it
                    has none, there is nothing to install.</p>
-                <p>The <strong>App Store</strong> tab in the install dialog is a
-                   shortcut to SACRVM's own apps: it asks GitHub which SACRVM
-                   repositories carry the <code>sacrvm-app</code> topic and reads each
-                   one's manifest. That is a question to GitHub, so it is only asked
-                   when you open the tab. Nothing is installed from the list without
-                   the same confirmation a pasted URL gets, and anything outside the
-                   list still installs by URL.</p>
             </section>
 
             <section id="installing">
                 <h2>What installing does</h2>
                 <ol class="steps">
-                    <li>You paste <code>github.com/owner/repo</code>.</li>
+                    <li>You paste <code>github.com/owner/repo</code> — or pick an app
+                        in the App Store.</li>
                     <li>The desktop reads <code>owner.github.io/repo/app.json</code> —
                         a fetch, not an execution.</li>
                     <li>It shows you what the manifest says, and where it came from.</li>
@@ -190,22 +184,19 @@
 
             <section id="get-started">
                 <h2>Nothing to open yet?</h2>
-                <p>Two example apps show the two kinds of app there are. Each link runs
-                   the ordinary install flow — manifest and origin shown, your
-                   confirmation asked:</p>
-                <ul class="steps">
-                    <li><a href="./?install=https://github.com/SACRVM/sacrvm-calculator">Install
-                        Calculator</a> — four functions and a full keyboard, in a
-                        floating window.</li>
-                    <li><a href="./?install=https://github.com/SACRVM/sacrvm-notes">Install
-                        Notes</a> — takes the whole stage and puts its note list in
-                        the rail.</li>
-                </ul>
+                <p>Open the <strong>App Store</strong>: the <strong>+</strong> tile at
+                   the end of the grid, then the <em>App Store</em> tab. It lists
+                   SACRVM's own apps, and <em>Install</em> runs the ordinary install
+                   flow: manifest and origin shown, your confirmation asked. Apps
+                   already on this desktop are greyed out.</p>
                 <p>Or write your own:
                    <a href="https://sacrvm.github.io/sacrvm-appkit/#/build" target="_blank" rel="noopener">how
                    an app is built</a>, end to end — a manifest, one custom element,
                    and a <a href="https://github.com/SACRVM/sacrvm-app-template" target="_blank" rel="noopener">template
                    repository</a> to start from (<em>Use this template</em>).</p>
+                <p class="note">The store's list comes from GitHub: the SACRVM
+                   repositories tagged <code>sacrvm-app</code>, each with its manifest
+                   read. GitHub is only asked when you open the tab.</p>
             </section>
         </main>
             </div>
