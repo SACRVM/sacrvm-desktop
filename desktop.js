@@ -379,6 +379,7 @@
         // Data is a second decision, never a side effect: removing an app is
         // about this desktop, deleting what you wrote in it is about your work.
         const data = await dataOf(manifest);
+        const unsaved = hasUnsaved(manifest.id);
         const buttons = [
             { action: "cancel", label: "Cancel", kind: "default" },
             { action: "remove", label: data ? "Remove, keep data" : "Remove", kind: "destructive" },
@@ -388,6 +389,8 @@
         const answer = await sac.dialog.confirm({
             title: `Remove ${manifest.name}?`,
             message:
+                (unsaved ? `${manifest.name} is open with unsaved work. Removing it closes ` +
+                           `it, and that work is lost.\n\n` : "") +
                 `It is removed from THIS browser's desktop — that is the only place it was.\n\n` +
                 `The app itself stays at ${originLabel(manifest)}, untouched, and ` +
                 `installing it again is one paste.` +
@@ -411,6 +414,12 @@
             sac.toast(`${manifest.name} and its data are gone.`, { kind: "info" });
         }
     }
+
+    /* Unsaved work: an app flags it (context.setDirty) and the kit keeps the
+       answer. Closing a window never loses it — the element stays — but a
+       remove unmounts the app, so the remove dialogs say so first. */
+    const hasUnsaved = (id) =>
+        !!(window.sac && sac.apps && typeof sac.apps.isDirty === "function" && sac.apps.isDirty(id));
 
     /**
      * The install prompt: one field, any of the three URL shapes.
@@ -823,6 +832,7 @@
             }
             const stored = (await Promise.all(installed.map(dataOf))).filter(Boolean);
             const items = stored.reduce((n, d) => n + d.count, 0);
+            const unsaved = installed.filter((m) => hasUnsaved(m.id)).map((m) => m.name);
             const buttons = [
                 { action: "cancel", label: "Cancel", kind: "default" },
                 { action: "wipe", label: stored.length ? "Remove, keep data" : "Remove all",
@@ -836,6 +846,8 @@
             const answer = await sac.dialog.confirm({
                 title: `Remove all ${installed.length} apps?`,
                 message:
+                    (unsaved.length ? `${andList(unsaved)} ${unsaved.length === 1 ? "is" : "are"} ` +
+                                      `open with unsaved work, which is lost.\n\n` : "") +
                     "This browser's desktop is emptied. Every app stays where it lives — " +
                     "nothing is deleted at any origin." +
                     (stored.length ? `\n\n${stored.length} of them stored ${items} item` +
