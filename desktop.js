@@ -327,7 +327,12 @@
             if (answer === "how") window.open(BUILD_GUIDE, "_blank", "noopener");
             return null;
         }
+        return confirmInstall(manifest);
+    }
 
+    /** The one consent step every install path ends in — pasted URL, store
+        entry or link: what the manifest says, where it came from, your yes. */
+    async function confirmInstall(manifest) {
         const known = installed.find((m) => m.id === manifest.id);
         const answer = await sac.dialog.confirm({
             title: known ? `Update ${manifest.name}?` : `Install ${manifest.name}?`,
@@ -421,46 +426,192 @@
     const hasUnsaved = (id) =>
         !!(window.sac && sac.apps && typeof sac.apps.isDirty === "function" && sac.apps.isDirty(id));
 
+    /* ------------------------------------------------------------- store */
+
+    /* The App Store tab: SACRVM's own apps, one click from the install
+       dialog instead of a URL to know by heart. A repository is in it when
+       its owner is listed here AND it carries the topic — tagging a repo on
+       GitHub is how an app joins, no desktop commit needed. The owners are
+       the gate: anyone can tag a repo, but only these accounts are asked
+       for, so strangers cannot fill the list.
+
+       It stays a shortcut, never a gate of its own: every entry is read
+       with sac.apps.inspect() — the same fetch a paste does — and installs
+       through the same confirm. Nothing runs before that yes. */
+    const STORE_OWNERS = ["SACRVM"];
+    const STORE_TOPIC  = "sacrvm-app";
+
+    /* Asked once per session: GitHub's search allows an anonymous visitor
+       ten queries a minute, and the list does not change while you look.
+       A failure is not kept — the next opening tries again. */
+    let storeLoad = null;
+
+    function loadStore() {
+        if (storeLoad) return storeLoad;
+        storeLoad = (async () => {
+            const q = [`topic:${STORE_TOPIC}`, ...STORE_OWNERS.map((o) => `user:${o}`)].join(" ");
+            const res = await fetch(
+                `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&per_page=100`,
+                { headers: { Accept: "application/vnd.github+json" } });
+            if (!res.ok) {
+                throw new Error(res.status === 403 || res.status === 429
+                    ? "GitHub is rate-limiting this browser for a minute."
+                    : `GitHub answered ${res.status}.`);
+            }
+            const { items = [] } = await res.json();
+            // A tagged repo that serves no manifest (Pages off, not yet
+            // published) is simply not listed — it is not an app YET.
+            const reads = await Promise.allSettled(items
+                .filter((r) => !r.archived && !r.is_template)
+                .map((r) => sac.apps.inspect(r.html_url)));
+            return reads
+                .filter((r) => r.status === "fulfilled")
+                .map((r) => r.value)
+                .sort((a, b) => a.name.localeCompare(b.name));
+        })();
+        storeLoad.catch(() => { storeLoad = null; });
+        return storeLoad;
+    }
+
+    /** One store row per app: what it is, whose it is, and one button. */
+    function storeRow(manifest, choose) {
+        const row = document.createElement("li");
+        row.className = "store-item";
+        // The app's own accent on its icon, the way its tile will wear it.
+        if (manifest.accent) row.style.setProperty("--accent", manifest.accent);
+
+        const icon = document.createElement("sac-icon");
+        icon.setAttribute("name", manifest.icon || "cube");
+
+        const body = document.createElement("span");
+        body.className = "store-body";
+        const name = document.createElement("span");
+        name.className = "store-name";
+        name.textContent = manifest.name;
+        const desc = document.createElement("span");
+        desc.className = "store-desc";
+        desc.textContent = manifest.description || "";
+        const meta = document.createElement("span");
+        meta.className = "store-meta";
+        meta.textContent = `${originLabel(manifest)}${manifest.version ? " · v" + manifest.version : ""}`;
+        body.append(name, desc, meta);
+
+        // Installed and current: nothing to do. Installed but behind the
+        // manifest: an update, through the same confirm as a new install.
+        const known = installed.find((m) => m.id === manifest.id);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn store-btn";
+        if (known && known.version === manifest.version) {
+            btn.textContent = "Installed";
+            btn.disabled = true;
+        } else {
+            btn.textContent = known ? "Update" : "Install";
+            btn.classList.add("primary");
+            btn.addEventListener("click", () => choose(manifest));
+        }
+
+        row.append(icon, body, btn);
+        return row;
+    }
+
+    /** Fills the store panel; called on the first switch to its tab. */
+    async function paintStore(panel, choose) {
+        const status = panel.querySelector(".store-status");
+        const list = panel.querySelector(".store-list");
+        status.hidden = false;
+        status.textContent = "Asking GitHub for the list…";
+        try {
+            const apps = await loadStore();
+            list.replaceChildren(...apps.map((m) => storeRow(m, choose)));
+            status.hidden = apps.length > 0;
+            status.textContent = "No apps in the store right now.";
+        } catch (err) {
+            console.warn("[desktop] the store could not be loaded:", err);
+            status.textContent =
+                `The list could not be loaded. ${err.message || "GitHub was not reachable."} ` +
+                `Pasting a repository URL still works.`;
+        }
+    }
+
     /**
-     * The install prompt: one field, any of the three URL shapes.
+     * The install dialog: two ways to the same confirm. "From URL" takes any
+     * of the three URL shapes; "App Store" lists SACRVM's own apps. Resolves
+     * { input } for a paste, { manifest } for a store pick, or null.
      *
      * Built here rather than in the kit: sac.dialog only does confirm, and a
      * text-input dialog now exists twice (sac-launcher's add-app form is the
      * other) — one more and it has earned a sac.dialog.prompt.
      */
-    function promptUrl() {
+    function openInstaller() {
         return new Promise((resolve) => {
+            let picked = null;
             const dlg = document.createElement("sac-dialog");
             dlg.setAttribute("title", "Install an app");
+            dlg.style.setProperty("--dialog-width", "520px");
             dlg.buttons = [
                 { action: "cancel", label: "Cancel", kind: "default" },
                 { action: "read",   label: "Read manifest", kind: "primary" },
             ];
 
-            const p = document.createElement("p");
-            p.textContent = "Paste the app's repository URL — or its app.json, if it lives somewhere else.";
+            const tabs = document.createElement("sac-tab-group");
+            tabs.className = "installer-tabs";
             // Said before the paste, not after the failure: this desktop can
             // only read one kind of repository, and that is not obvious.
-            const scope = document.createElement("p");
-            scope.className = "hint";
-            scope.textContent = "SACRVM APPKIT apps only — a repository serving an app.json " +
-                                "from its GitHub Pages root. Anything else has nothing to read.";
-            const input = document.createElement("input");
-            input.type = "url";
-            input.placeholder = "https://github.com/owner/repo";
-            input.setAttribute("aria-label", "App repository URL");
-            input.style.width = "100%";
+            tabs.innerHTML = `
+                <sac-tab name="url">From URL</sac-tab>
+                <sac-tab name="store">App Store</sac-tab>
+                <sac-tab-panel name="url">
+                    <div class="installer-panel">
+                        <p>Paste the app's repository URL — or its app.json, if it lives somewhere else.</p>
+                        <input type="url" class="installer-url" placeholder="https://github.com/owner/repo"
+                               aria-label="App repository URL">
+                        <p class="hint">SACRVM APPKIT apps only — a repository serving an app.json
+                           from its GitHub Pages root. Anything else has nothing to read.</p>
+                    </div>
+                </sac-tab-panel>
+                <sac-tab-panel name="store">
+                    <div class="installer-panel store">
+                        <p class="hint">SACRVM's own apps. This tab asks GitHub which
+                           repositories carry the ${STORE_TOPIC} topic and reads each one's
+                           manifest — a fetch, nothing runs. Installing still shows you the
+                           app and waits for your yes.</p>
+                        <p class="store-status" hidden></p>
+                        <ul class="store-list"></ul>
+                    </div>
+                </sac-tab-panel>`;
+            dlg.appendChild(tabs);
+
+            const input = tabs.querySelector(".installer-url");
             // Enter submits: a one-field dialog that needs the mouse is rude.
             input.addEventListener("keydown", (e) => {
                 if (e.key === "Enter") { e.preventDefault(); dlg.close("read"); }
             });
-            dlg.append(p, input, scope);
+
+            // A store pick closes the dialog and hands over the manifest it
+            // already read — the confirm that follows needs no second fetch.
+            const choose = (manifest) => { picked = manifest; dlg.close("store"); };
+
+            let storePainted = false;
+            tabs.addEventListener("sac:tab-show", (e) => {
+                const onStore = e.detail.name === "store";
+                // "Read manifest" belongs to the URL field; in the store every
+                // row carries its own button.
+                dlg.setDisabled("read", onStore);
+                if (onStore && !storePainted) {
+                    storePainted = true;
+                    paintStore(tabs.querySelector(".store"), choose);
+                }
+                if (!onStore) input.focus();
+            });
 
             dlg.addEventListener("sac:action", (e) => {
                 const value = input.value.trim();
                 setTimeout(() => {
                     dlg.remove();
-                    resolve(e.detail.action === "read" && value ? value : null);
+                    if (e.detail.action === "store" && picked) resolve({ manifest: picked });
+                    else if (e.detail.action === "read" && value) resolve({ input: value });
+                    else resolve(null);
                 }, 120);
             }, { once: true });
 
@@ -471,8 +622,10 @@
     }
 
     async function promptInstall() {
-        const url = await promptUrl();
-        if (url) await install(url);
+        const choice = await openInstaller();
+        if (!choice) return;
+        if (choice.manifest) await confirmInstall(choice.manifest);
+        else await install(choice.input);
     }
 
     /* ------------------------------------------------------------- welcome */

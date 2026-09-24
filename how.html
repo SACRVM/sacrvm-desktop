@@ -137,10 +137,16 @@
                    root, next to the one custom element that app is. That manifest is
                    the whole reason a desktop can install something it has never seen.</p>
                 <p>Any other repository — however good the project — has nothing here
-                   to read, and pasting it will politely fail. This is not a store with
-                   a review queue: there is no approval, no account and no list. If it
-                   has a manifest, it installs; if it has none, there is nothing to
-                   install.</p>
+                   to read, and pasting it will politely fail. There is no review queue,
+                   no approval and no account. If it has a manifest, it installs; if it
+                   has none, there is nothing to install.</p>
+                <p>The <strong>App Store</strong> tab in the install dialog is a
+                   shortcut to SACRVM's own apps: it asks GitHub which SACRVM
+                   repositories carry the <code>sacrvm-app</code> topic and reads each
+                   one's manifest. That is a question to GitHub, so it is only asked
+                   when you open the tab. Nothing is installed from the list without
+                   the same confirmation a pasted URL gets, and anything outside the
+                   list still installs by URL.</p>
             </section>
 
             <section id="installing">

@@ -183,6 +183,51 @@
     margin: 0;
 }
 
+/* Install dialog: two tabs, one confirm behind both. */
+.installer-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding-top: 0.9rem;
+}
+.installer-panel > p { margin: 0; }
+
+/* The App Store list: one row per app, its origin in plain sight like on
+   every tile, one button at the end. Scrolls on its own once it is long,
+   so the dialog's buttons stay put. */
+.store-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.5rem;
+    max-height: 22rem;
+    overflow-y: auto;
+}
+.store-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--field);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-m);
+}
+.store-item > sac-icon { --icon-size: 24px; color: var(--accent); }
+.store-body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.store-name { font-weight: 600; }
+.store-desc { color: var(--text-muted); font-size: 0.85rem; }
+.store-meta {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow-wrap: anywhere;
+}
+.store-btn { width: auto; }
+.store-status { color: var(--text-muted); font-size: 0.9rem; }
+.store-status[hidden] { display: none; }
+
 /* First-run offer: two apps, each with its origin in plain sight, because
    that is the one fact that should never be behind a click. */
 .welcome { display: flex; flex-direction: column; gap: 1rem; }
@@ -240,7 +285,8 @@
    way round: their newlines are source indentation and must collapse. */
 sac-dialog p { white-space: pre-line; }
 sac-dialog .settings p,
-sac-dialog .welcome p { white-space: normal; }
+sac-dialog .welcome p,
+sac-dialog .installer-panel p { white-space: normal; }
 
 .empty {
     color: var(--text-muted);
