@@ -496,17 +496,16 @@
         meta.textContent = `${originLabel(manifest)}${manifest.version ? " · v" + manifest.version : ""}`;
         body.append(name, desc, meta);
 
-        // Installed and current: nothing to do. Installed but behind the
-        // manifest: an update, through the same confirm as a new install.
-        const known = installed.find((m) => m.id === manifest.id);
+        // Installed is installed: the store is for adding apps, and opening
+        // an app already refreshes its snapshot (refreshManifest).
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "btn store-btn";
-        if (known && known.version === manifest.version) {
+        if (installed.some((m) => m.id === manifest.id)) {
             btn.textContent = "Installed";
             btn.disabled = true;
         } else {
-            btn.textContent = known ? "Update" : "Install";
+            btn.textContent = "Install";
             btn.classList.add("primary");
             btn.addEventListener("click", () => choose(manifest));
         }
