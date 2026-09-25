@@ -170,6 +170,8 @@
     margin-bottom: 0;
 }
 .settings label:first-child { margin-top: 0; }
+/* Segment rows sit at their own width, like the theme and language toggles. */
+.settings sac-segmented-control { align-self: flex-start; }
 .settings-actions {
     display: flex;
     flex-wrap: wrap;

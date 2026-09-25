@@ -118,6 +118,8 @@
         "settings.picture": "Bild-URL (optional)",
         "settings.theme": "Design",
         "settings.language": "Sprache",
+        "settings.date-format": "Datumsformat",
+        "settings.clock": "Uhr",
         "settings.this-desktop": "Dieser Desktop",
         "settings.remove-all": "Alle Apps entfernen",
         "settings.clear-files": "Deine Dateien löschen ({size})",

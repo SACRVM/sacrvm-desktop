@@ -720,6 +720,31 @@
         } catch (err) { /* a desktop without storage still themes fine */ }
     }
 
+    /* Date format and clock: a page-wide kit setting (sac.regional), apart
+       from the language — English UI with German dates is normal. The kit
+       does not persist it and no browser API exposes the OS choice, so the
+       desktop owns it: stored here, applied at boot, and every hosted app's
+       date and time fields follow it live. */
+    const REGIONAL_KEY = "sacrvm.desktop.regional";
+    const DATE_FORMATS = [
+        { value: "iso",  label: "ISO" },
+        { value: "dmy.", label: "25.09.2026" },
+        { value: "dmy/", label: "25/09/2026" },
+        { value: "mdy/", label: "09/25/2026" },
+    ];
+
+    function storedRegional() {
+        try { return JSON.parse(localStorage.getItem(REGIONAL_KEY) || "{}") || {}; }
+        catch (err) { return {}; }
+    }
+
+    function setRegional(partial) {
+        if (!sac.regional) return;
+        sac.regional.set(partial);
+        try { localStorage.setItem(REGIONAL_KEY, JSON.stringify(sac.regional.get())); }
+        catch (err) { /* the choice still holds for this visit */ }
+    }
+
     /**
      * Built once and kept: the theme toggle inside it is the kit's one source
      * of truth for the theme, so it must not be thrown away between openings.
@@ -751,6 +776,17 @@
 
             <label data-t="settings.language">Language</label>
             <sac-lang-toggle></sac-lang-toggle>
+
+            <label data-t="settings.date-format">Date format</label>
+            <sac-segmented-control class="date-format">
+                ${DATE_FORMATS.map((f) => `<button data-value="${f.value}">${f.label}</button>`).join("")}
+            </sac-segmented-control>
+
+            <label data-t="settings.clock">Clock</label>
+            <sac-segmented-control class="hour-cycle">
+                <button data-value="h23">24h</button>
+                <button data-value="h12">12h</button>
+            </sac-segmented-control>
 
             <label class="accent-label">Accent</label>
             <sac-swatch-grid columns="8" selectable class="accent-swatches">
@@ -798,6 +834,17 @@
         nameField.addEventListener("change", commitIdentity);
         avatarField.addEventListener("change", commitIdentity);
         nameField.addEventListener("keydown", (e) => { if (e.key === "Enter") nameField.blur(); });
+
+        const dateFormat = wrap.querySelector(".date-format");
+        const hourCycle  = wrap.querySelector(".hour-cycle");
+        const fillRegional = () => {
+            if (!sac.regional) return;
+            const r = sac.regional.get();
+            dateFormat.value = r.date;
+            hourCycle.value = r.hourCycle;
+        };
+        dateFormat.addEventListener("sac:change", (e) => setRegional({ date: e.detail.value }));
+        hourCycle.addEventListener("sac:change", (e) => setRegional({ hourCycle: e.detail.value }));
 
         const grid        = wrap.querySelector(".accent-swatches");
         const custom      = wrap.querySelector(".accent-custom");
@@ -1003,7 +1050,7 @@
 
         // Recount on every opening: apps come and go between them — and the
         // accent section speaks for whatever is on stage right now.
-        dlg.addEventListener("sac:open", () => { showOrphans(); showFiles(); fillIdentity(); paintAccent(); });
+        dlg.addEventListener("sac:open", () => { showOrphans(); showFiles(); fillIdentity(); fillRegional(); paintAccent(); });
 
         // The language toggle lives in here, so a switch happens with the
         // dialog open: everything it drew follows in place.
@@ -1024,6 +1071,7 @@
         settingsDialog = dlg;
         paintAccent();
         fillIdentity();
+        fillRegional();
         showFiles();
         dlg.open();
     }
@@ -1190,6 +1238,7 @@
         renderTiles();
 
         applyAccent(storedAccent());
+        if (sac.regional) sac.regional.set(storedRegional());
 
         // A desktop is a place with its own files: every app's Open… /
         // Save as… (context.files) goes to one shared space in this browser,
