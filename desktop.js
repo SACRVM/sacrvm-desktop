@@ -223,10 +223,10 @@
         if (followsDesktop(m)) delete copy.accent;
         else if (m.accentOverride) copy.accent = m.accentOverride;
         // Every app is an app, whether it takes the stage or floats: the
-        // desktop lists them all itself (burger, Ctrl-K "Apps"), so a view
-        // registers no router route of its own — else the palette would file
-        // it under "Views", apart from the window apps. Its #/<id> address
-        // keeps working; sac.apps routes by its registry, not the router's.
+        // desktop lists them all itself (burger, Ctrl-K "Apps"), in tile
+        // order and with one label style, so a view registers no router
+        // route of its own — the palette would list it a second time. Its
+        // #/<id> address keeps working; sac.apps routes by its registry.
         if (m.kind === "view") copy.nav = false;
         return copy;
     };
@@ -700,6 +700,9 @@
             <label>Theme</label>
             <sac-theme-toggle></sac-theme-toggle>
 
+            <label>Language</label>
+            <sac-lang-toggle></sac-lang-toggle>
+
             <label class="accent-label">Accent</label>
             <sac-swatch-grid columns="8" selectable class="accent-swatches">
                 ${ACCENTS.map((a) => `<sac-swatch value="${a.value}" label="${a.label}"></sac-swatch>`).join("")}
@@ -1105,7 +1108,12 @@
        prefix keeps the desktop out of any app's own command namespace. */
     function syncCommands() {
         if (!window.sac || !sac.commands) return;
-        const wanted = new Map(installed.map((m) => ["desktop:open:" + m.id, m]));
+        // palette: false in a manifest keeps that app out, as the kit honours.
+        const wanted = new Map(installed
+            .filter((m) => m.palette !== false)
+            .map((m) => ["desktop:open:" + m.id, m]));
+        // The kit's own group key, so the heading follows the language.
+        const group = typeof sac.t === "function" ? sac.t("palette.group-apps", "Apps") : "Apps";
         sac.commands.list().forEach((c) => {
             if (c.id.startsWith("desktop:open:") && !wanted.has(c.id)) {
                 sac.commands.unregister(c.id);
@@ -1115,7 +1123,7 @@
             id,
             label: `Open ${m.name}`,
             icon: m.icon || "cube",
-            group: "Apps",
+            group,
             run: () => { refreshManifest(m.id); sac.apps.open(m.id); },
         }));
     }
@@ -1177,6 +1185,9 @@
         });
         // Identity is part of the package (the you-button in both ribbons).
         if (window.sac.identity) sac.identity.onChange(declareHost);
+        // The palette's "Apps" heading is a kit string: re-register on a
+        // language switch so it follows.
+        if (window.sac.lang) sac.lang.onChange(syncCommands);
 
         // ?install=<url> installs by link — how you hand somebody an app.
         const wanted = new URLSearchParams(location.search).get("install");
