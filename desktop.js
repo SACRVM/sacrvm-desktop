@@ -57,6 +57,18 @@
 
     let installed = [];
 
+    /* ------------------------------------------------------------ strings */
+
+    /* Every string the desktop shows goes through T(): the English text is
+       written here, where it is used, and is the fallback of sac.t(); other
+       languages live in i18n.js (sac.i18n.add). {name}-style placeholders are
+       filled from `vars`. The language is the kit's (sac.lang, switched in
+       Settings); a switch re-renders whatever the desktop drew itself. */
+    function T(key, en, vars) {
+        const s = window.sac && typeof sac.t === "function" ? sac.t("desktop." + key, en) : en;
+        return vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m)) : s;
+    }
+
     /* --------------------------------------------------------------- tiles */
 
     const el = (id) => document.getElementById(id);
@@ -111,7 +123,9 @@
         const addIcon = document.createElement("sac-icon");
         addIcon.setAttribute("name", "plus");
         const addLabel = document.createElement("span");
-        addLabel.textContent = installed.length ? "Install app" : "Install your first app";
+        addLabel.textContent = installed.length
+            ? T("tile.install", "Install app")
+            : T("tile.install-first", "Install your first app");
         add.append(addIcon, addLabel);
         add.addEventListener("click", promptInstall);
         grid.appendChild(add);
@@ -129,8 +143,8 @@
         trigger.slot = "trigger";
         trigger.type = "button";
         trigger.className = "tile-menu-btn";
-        trigger.title = `${manifest.name} options`;
-        trigger.setAttribute("aria-label", `${manifest.name} options`);
+        trigger.title = T("tile.options", "{name} options", { name: manifest.name });
+        trigger.setAttribute("aria-label", trigger.title);
         trigger.textContent = "⋯";          // midline horizontal ellipsis
         menu.appendChild(trigger);
 
@@ -162,7 +176,7 @@
         ACCENTS.forEach((a) => {
             const s = document.createElement("sac-swatch");
             s.setAttribute("value", a.value);
-            s.setAttribute("label", a.label);
+            s.setAttribute("label", accentLabel(a));
             if ((manifest.accentOverride || "").toLowerCase() === a.value) {
                 s.setAttribute("selected", "");
             }
@@ -171,15 +185,15 @@
         tint.addEventListener("sac:change", (e) => setTileAccent(manifest, e.detail.value));
 
         menu.append(
-            item("size:medium", "Medium tile"),
-            item("size:wide",   "Wide tile"),
-            item("size:large",  "Large tile"),
+            item("size:medium", T("tile.medium", "Medium tile")),
+            item("size:wide",   T("tile.wide", "Wide tile")),
+            item("size:large",  T("tile.large", "Large tile")),
             document.createElement("hr"),
             tint,
-            item("tint:reset",   "App's shipped color"),
-            item("tint:desktop", "Desktop's color"),
+            item("tint:reset",   T("accent.shipped", "App's shipped color")),
+            item("tint:desktop", T("accent.desktop", "Desktop's color")),
             document.createElement("hr"),
-            item("remove", "Remove from this desktop", true),
+            item("remove", T("tile.remove", "Remove from this desktop"), true),
         );
 
         menu.addEventListener("sac:select", (e) => {
@@ -255,7 +269,7 @@
         try {
             return new URL(manifest.manifestUrl || manifest.src).host;
         } catch (err) {
-            return "unknown origin";
+            return T("origin.unknown", "unknown origin");
         }
     }
 
@@ -312,20 +326,21 @@
             manifest = await sac.apps.inspect(input);
         } catch (err) {
             const answer = await sac.dialog.confirm({
-                title: "Not an app this desktop can install",
+                title: T("notapp.title", "Not an app this desktop can install"),
                 message:
-                    `This desktop installs SACRVM APPKIT apps — a repository whose GitHub Pages ` +
-                    `serves an app.json in its root, next to the one custom element the app is. ` +
-                    `Any other repository, however good, has nothing here to read.\n\n` +
-                    `Making one is small: start from the template, rename five strings, switch ` +
-                    `Pages on.\n\n` +
+                    T("notapp.body",
+                      "This desktop installs SACRVM APPKIT apps — a repository whose GitHub Pages " +
+                      "serves an app.json in its root, next to the one custom element the app is. " +
+                      "Any other repository, however good, has nothing here to read.\n\n" +
+                      "Making one is small: start from the template, rename five strings, switch " +
+                      "Pages on.") + "\n\n" +
                     // The address it actually tried, last: it is the useful
                     // detail when something IS an app and still did not load
                     // (Pages off, a typo, a private repo).
-                    `Looked for: ${manifestUrlOf(input)}`,
+                    T("notapp.looked", "Looked for: {url}", { url: manifestUrlOf(input) }),
                 buttons: [
-                    { action: "ok", label: "OK", kind: "default" },
-                    { action: "how", label: "How to build one", kind: "primary" },
+                    { action: "ok", label: "OK", labelKey: "dialog.ok", kind: "default" },
+                    { action: "how", label: T("notapp.how", "How to build one"), kind: "primary" },
                 ],
             });
             if (answer === "how") window.open(BUILD_GUIDE, "_blank", "noopener");
@@ -339,24 +354,42 @@
     async function confirmInstall(manifest) {
         const known = installed.find((m) => m.id === manifest.id);
         const answer = await sac.dialog.confirm({
-            title: known ? `Update ${manifest.name}?` : `Install ${manifest.name}?`,
+            title: known ? T("confirm.update-title", "Update {name}?", { name: manifest.name })
+                         : T("confirm.install-title", "Install {name}?", { name: manifest.name }),
             message:
-                `${manifest.description || "No description."}\n\n` +
-                `Origin: ${new URL(manifest.manifestUrl).origin}\n` +
-                `Version: ${manifest.version || "unversioned"} · runs as: ${manifest.kind}\n\n` +
-                `Installing lets this app run its own code in your desktop.`,
+                `${manifest.description || T("confirm.no-description", "No description.")}\n\n` +
+                T("confirm.origin", "Origin: {origin}", { origin: new URL(manifest.manifestUrl).origin }) + "\n" +
+                T("confirm.version", "Version: {version} · runs as: {kind}", {
+                    version: manifest.version || T("confirm.unversioned", "unversioned"),
+                    kind: manifest.kind === "view" ? T("kind.view", "view")
+                        : manifest.kind === "window" ? T("kind.window", "window") : manifest.kind,
+                }) + "\n\n" +
+                T("confirm.runs-code", "Installing lets this app run its own code in your desktop."),
             buttons: [
-                { action: "cancel", label: "Cancel", kind: "default" },
-                { action: "install", label: known ? "Update" : "Install", kind: "primary" },
+                { action: "cancel", label: T("common.cancel", "Cancel"), kind: "default" },
+                { action: "install",
+                  label: known ? T("confirm.update", "Update") : T("confirm.install", "Install"),
+                  kind: "primary" },
             ],
         });
         if (answer !== "install") return null;
 
         adopt(manifest);
         if (typeof sac.toast === "function") {
-            sac.toast(`${manifest.name} installed.`, { kind: "success" });
+            sac.toast(T("toast.installed", "{name} installed.", { name: manifest.name }), { kind: "success" });
         }
         return manifest;
+    }
+
+    function sizeText(bytes) {
+        return bytes < 1024 ? T("size.bytes", "{n} bytes", { n: bytes })
+             : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB`
+             : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    }
+
+    function itemsText(count) {
+        return count === 1 ? T("size.item", "1 item")
+                           : T("size.items", "{n} items", { n: count });
     }
 
     /** What a storage handle holds, as a sentence — or null if it is empty. */
@@ -364,10 +397,7 @@
         try {
             const { bytes, count } = await handle.usage();
             if (!count) return null;
-            const size = bytes < 1024 ? `${bytes} bytes`
-                       : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB`
-                       : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-            return { bytes, count, text: `${count} item${count === 1 ? "" : "s"}, ${size}` };
+            return { bytes, count, text: `${itemsText(count)}, ${sizeText(bytes)}` };
         } catch (err) {
             return null;
         }
@@ -390,21 +420,25 @@
         const data = await dataOf(manifest);
         const unsaved = hasUnsaved(manifest.id);
         const buttons = [
-            { action: "cancel", label: "Cancel", kind: "default" },
-            { action: "remove", label: data ? "Remove, keep data" : "Remove", kind: "destructive" },
+            { action: "cancel", label: T("common.cancel", "Cancel"), kind: "default" },
+            { action: "remove",
+              label: data ? T("remove.keep", "Remove, keep data") : T("remove.remove", "Remove"),
+              kind: "destructive" },
         ];
-        if (data) buttons.push({ action: "purge", label: "Remove + delete data", kind: "destructive" });
+        if (data) buttons.push({ action: "purge", label: T("remove.purge", "Remove + delete data"), kind: "destructive" });
 
+        const vars = { name: manifest.name, origin: originLabel(manifest), data: data && data.text };
         const answer = await sac.dialog.confirm({
-            title: `Remove ${manifest.name}?`,
+            title: T("remove.title", "Remove {name}?", vars),
             message:
-                (unsaved ? `${manifest.name} is open with unsaved work. Removing it closes ` +
-                           `it, and that work is lost.\n\n` : "") +
-                `It is removed from THIS browser's desktop — that is the only place it was.\n\n` +
-                `The app itself stays at ${originLabel(manifest)}, untouched, and ` +
-                `installing it again is one paste.` +
-                (data ? `\n\nIt has stored ${data.text} here. Kept by default, so reinstalling ` +
-                        `brings it back — or delete it now, which cannot be undone.` : ""),
+                (unsaved ? T("remove.unsaved", "{name} is open with unsaved work. Removing it " +
+                             "closes it, and that work is lost.", vars) + "\n\n" : "") +
+                T("remove.body", "It is removed from THIS browser's desktop — that is the only " +
+                  "place it was.\n\nThe app itself stays at {origin}, untouched, and installing " +
+                  "it again is one paste.", vars) +
+                (data ? "\n\n" + T("remove.data", "It has stored {data} here. Kept by default, " +
+                        "so reinstalling brings it back — or delete it now, which cannot be " +
+                        "undone.", vars) : ""),
             buttons,
         });
         if (answer !== "remove" && answer !== "purge") return;
@@ -420,7 +454,7 @@
         renderTiles();
         declareHost();
         if (typeof sac.toast === "function" && answer === "purge") {
-            sac.toast(`${manifest.name} and its data are gone.`, { kind: "info" });
+            sac.toast(T("toast.purged", "{name} and its data are gone.", { name: manifest.name }), { kind: "info" });
         }
     }
 
@@ -459,8 +493,8 @@
                 { headers: { Accept: "application/vnd.github+json" } });
             if (!res.ok) {
                 throw new Error(res.status === 403 || res.status === 429
-                    ? "GitHub is rate-limiting this browser for a minute."
-                    : `GitHub answered ${res.status}.`);
+                    ? T("store.rate", "GitHub is rate-limiting this browser for a minute.")
+                    : T("store.http", "GitHub answered {status}.", { status: res.status }));
             }
             const { items = [] } = await res.json();
             // A tagged repo that serves no manifest (Pages off, not yet
@@ -506,10 +540,10 @@
         btn.type = "button";
         btn.className = "btn store-btn";
         if (installed.some((m) => m.id === manifest.id)) {
-            btn.textContent = "Installed";
+            btn.textContent = T("store.installed", "Installed");
             btn.disabled = true;
         } else {
-            btn.textContent = "Install";
+            btn.textContent = T("store.install", "Install");
             btn.classList.add("primary");
             btn.addEventListener("click", () => choose(manifest));
         }
@@ -523,17 +557,17 @@
         const status = panel.querySelector(".store-status");
         const list = panel.querySelector(".store-list");
         status.hidden = false;
-        status.textContent = "Asking GitHub for the list…";
+        status.textContent = T("store.loading", "Asking GitHub for the list…");
         try {
             const apps = await loadStore();
             list.replaceChildren(...apps.map((m) => storeRow(m, choose)));
             status.hidden = apps.length > 0;
-            status.textContent = "No apps in the store right now.";
+            status.textContent = T("store.empty", "No apps in the store right now.");
         } catch (err) {
             console.warn("[desktop] the store could not be loaded:", err);
-            status.textContent =
-                `The list could not be loaded. ${err.message || "GitHub was not reachable."} ` +
-                `Pasting a repository URL still works.`;
+            status.textContent = T("store.failed",
+                "The list could not be loaded. {reason} Pasting a repository URL still works.",
+                { reason: err.message || T("store.unreachable", "GitHub was not reachable.") });
         }
     }
 
@@ -550,11 +584,11 @@
         return new Promise((resolve) => {
             let picked = null;
             const dlg = document.createElement("sac-dialog");
-            dlg.setAttribute("title", "Install an app");
+            dlg.setAttribute("title", T("installer.title", "Install an app"));
             dlg.style.setProperty("--dialog-width", "520px");
             dlg.buttons = [
-                { action: "cancel", label: "Cancel", kind: "default" },
-                { action: "read",   label: "Read manifest", kind: "primary" },
+                { action: "cancel", label: T("common.cancel", "Cancel"), kind: "default" },
+                { action: "read",   label: T("installer.read", "Read manifest"), kind: "primary" },
             ];
 
             const tabs = document.createElement("sac-tab-group");
@@ -562,15 +596,14 @@
             // Said before the paste, not after the failure: this desktop can
             // only read one kind of repository, and that is not obvious.
             tabs.innerHTML = `
-                <sac-tab name="url">From URL</sac-tab>
-                <sac-tab name="store">App Store</sac-tab>
+                <sac-tab name="url">${T("installer.tab-url", "From URL")}</sac-tab>
+                <sac-tab name="store">${T("installer.tab-store", "App Store")}</sac-tab>
                 <sac-tab-panel name="url">
                     <div class="installer-panel">
-                        <p>Paste the app's repository URL — or its app.json, if it lives somewhere else.</p>
+                        <p>${T("installer.paste", "Paste the app's repository URL — or its app.json, if it lives somewhere else.")}</p>
                         <input type="url" class="installer-url" placeholder="https://github.com/owner/repo"
-                               aria-label="App repository URL">
-                        <p class="hint">SACRVM APPKIT apps only — a repository serving an app.json
-                           from its GitHub Pages root. Anything else has nothing to read.</p>
+                               aria-label="${T("installer.url-label", "App repository URL")}">
+                        <p class="hint">${T("installer.scope", "SACRVM APPKIT apps only — a repository serving an app.json from its GitHub Pages root. Anything else has nothing to read.")}</p>
                     </div>
                 </sac-tab-panel>
                 <sac-tab-panel name="store">
@@ -630,7 +663,7 @@
     /** "A and B", "A, B and C" — for a sentence, not a log line. */
     function andList(names) {
         if (names.length < 2) return names[0] || "";
-        return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+        return names.slice(0, -1).join(", ") + T("common.and", " and ") + names[names.length - 1];
     }
 
     /* ----------------------------------------------------------- settings */
@@ -639,15 +672,35 @@
     // Seeds, not a palette: each one is a whole theme, because everything
     // accent-derived follows it. The kit's default leads.
     const ACCENTS = [
-        { value: "#3b82f6", label: "Blue (default)" },
-        { value: "#14b8a6", label: "Teal" },
-        { value: "#10b981", label: "Green" },
-        { value: "#a855f7", label: "Violet" },
-        { value: "#ec4899", label: "Pink" },
-        { value: "#f97316", label: "Orange" },
-        { value: "#eab308", label: "Yellow" },
-        { value: "#64748b", label: "Slate" },
+        { value: "#3b82f6", key: "blue",   label: "Blue (default)" },
+        { value: "#14b8a6", key: "teal",   label: "Teal" },
+        { value: "#10b981", key: "green",  label: "Green" },
+        { value: "#a855f7", key: "violet", label: "Violet" },
+        { value: "#ec4899", key: "pink",   label: "Pink" },
+        { value: "#f97316", key: "orange", label: "Orange" },
+        { value: "#eab308", key: "yellow", label: "Yellow" },
+        { value: "#64748b", key: "slate",  label: "Slate" },
     ];
+    const accentLabel = (a) => T("accent." + a.key, a.label);
+
+    /* Static text in a template: data-t names the key, the element's own
+       English text is the fallback (kept on first pass), data-t-placeholder
+       does the same for a field's placeholder. relabel() re-runs on every
+       language switch, so a dialog built once follows it in place. */
+    function relabel(root) {
+        root.querySelectorAll("[data-t]").forEach((node) => {
+            if (node.dataset.en === undefined) node.dataset.en = node.textContent.replace(/\s+/g, " ").trim();
+            node.textContent = T(node.dataset.t, node.dataset.en);
+        });
+        root.querySelectorAll("[data-t-placeholder]").forEach((node) => {
+            if (node.dataset.enPlaceholder === undefined) node.dataset.enPlaceholder = node.placeholder;
+            node.placeholder = T(node.dataset.tPlaceholder, node.dataset.enPlaceholder);
+        });
+        root.querySelectorAll("sac-swatch[data-accent]").forEach((sw) => {
+            const a = ACCENTS.find((x) => x.key === sw.dataset.accent);
+            if (a) sw.setAttribute("label", accentLabel(a));
+        });
+    }
 
     function applyAccent(value) {
         if (value) document.documentElement.style.setProperty("--accent", value);
@@ -677,8 +730,8 @@
         if (settingsDialog) { settingsDialog.open(); return; }
 
         const dlg = document.createElement("sac-dialog");
-        dlg.setAttribute("title", "Settings");
-        dlg.buttons = [{ action: "done", label: "Done", kind: "primary" }];
+        dlg.setAttribute("title", T("settings.title", "Settings"));
+        dlg.buttons = [{ action: "done", label: "Done", labelKey: "desktop.settings.done", kind: "primary" }];
         // The dialog is its own accent scope (the kit re-derives the accent
         // family on .sac-app elements): opened from an app it wears THAT
         // surface's color, at home it inherits the desktop's.
@@ -687,43 +740,43 @@
         const wrap = document.createElement("div");
         wrap.className = "settings";
         wrap.innerHTML = `
-            <label for="me-name">You</label>
+            <label for="me-name" data-t="settings.you">You</label>
             <input type="text" id="me-name" class="me-name" placeholder="Your name"
-                   autocomplete="off" maxlength="80">
+                   data-t-placeholder="settings.name" autocomplete="off" maxlength="80">
             <input type="url" id="me-avatar-src" class="me-avatar-src"
-                   placeholder="Picture URL (optional)" autocomplete="off">
-            <p class="hint">Apps can read this to greet you and colour your avatar.
+                   placeholder="Picture URL (optional)" data-t-placeholder="settings.picture" autocomplete="off">
+            <p class="hint" data-t="settings.you-hint">Apps can read this to greet you and colour your avatar.
                It is a name in this browser, nothing more — no account, no
                password, nothing verified, and nothing leaves this device unless
                an app you installed sends it.</p>
 
-            <label>Theme</label>
+            <label data-t="settings.theme">Theme</label>
             <sac-theme-toggle></sac-theme-toggle>
 
-            <label>Language</label>
+            <label data-t="settings.language">Language</label>
             <sac-lang-toggle></sac-lang-toggle>
 
             <label class="accent-label">Accent</label>
             <sac-swatch-grid columns="8" selectable class="accent-swatches">
-                ${ACCENTS.map((a) => `<sac-swatch value="${a.value}" label="${a.label}"></sac-swatch>`).join("")}
+                ${ACCENTS.map((a) => `<sac-swatch value="${a.value}" data-accent="${a.key}" label="${a.label}"></sac-swatch>`).join("")}
             </sac-swatch-grid>
             <sac-color-field label="Custom" class="accent-custom"></sac-color-field>
             <div class="settings-actions accent-actions" hidden>
-                <button type="button" class="btn accent-reset" hidden>App's shipped color</button>
-                <button type="button" class="btn accent-desktop" hidden>Desktop's color</button>
+                <button type="button" class="btn accent-reset" data-t="accent.shipped" hidden>App's shipped color</button>
+                <button type="button" class="btn accent-desktop" data-t="accent.desktop" hidden>Desktop's color</button>
             </div>
             <p class="hint accent-hint"></p>
 
-            <label>This desktop</label>
-            <p class="hint">Your apps and these settings live in this browser,
+            <label data-t="settings.this-desktop">This desktop</label>
+            <p class="hint" data-t="settings.this-desktop-hint">Your apps and these settings live in this browser,
                on this device. Nobody else sees them, and there is no account
                to lose them with.</p>
             <p class="hint files-line"></p>
             <p class="hint orphans" hidden></p>
             <div class="settings-actions">
-                <button type="button" class="btn danger remove-all">Remove all apps</button>
-                <button type="button" class="btn danger clear-files" hidden>Delete your files</button>
-                <button type="button" class="btn danger clear-orphans" hidden>Delete leftover data</button>
+                <button type="button" class="btn danger remove-all" data-t="settings.remove-all">Remove all apps</button>
+                <button type="button" class="btn danger clear-files" data-t="settings.clear-files" hidden>Delete your files</button>
+                <button type="button" class="btn danger clear-orphans" data-t="settings.clear-orphans" hidden>Delete leftover data</button>
             </div>
         `;
         dlg.appendChild(wrap);
@@ -753,7 +806,7 @@
 
         const grid        = wrap.querySelector(".accent-swatches");
         const custom      = wrap.querySelector(".accent-custom");
-        const accentLabel = wrap.querySelector(".accent-label");
+        const accentHead  = wrap.querySelector(".accent-label");
         const accentHint  = wrap.querySelector(".accent-hint");
         const accentReset   = wrap.querySelector(".accent-reset");
         const accentDesktop = wrap.querySelector(".accent-desktop");
@@ -786,14 +839,15 @@
             const activeId = sac.apps.active();
             accentCtx = activeId ? installed.find((m) => m.id === activeId) || null : null;
             if (accentCtx) {
-                accentLabel.textContent = `Accent — ${accentCtx.name}`;
+                const vars = { name: accentCtx.name };
+                accentHead.textContent = T("accent.app-label", "Accent — {name}", vars);
                 accentHint.textContent =
-                    `This recolors ${accentCtx.name} on this desktop: the app ` +
-                    `behind this dialog and its tile follow along. Your ` +
-                    `desktop's own accent is set from the home screen.` +
+                    T("accent.app-hint", "This recolors {name} on this desktop: the app " +
+                      "behind this dialog and its tile follow along. Your desktop's own " +
+                      "accent is set from the home screen.", vars) +
                     (followsDesktop(accentCtx)
-                        ? ` Right now it wears your desktop's accent and ` +
-                          `follows it live.`
+                        ? " " + T("accent.app-follows", "Right now it wears your desktop's " +
+                                  "accent and follows it live.")
                         : "");
                 accentRow.hidden = false;
                 accentReset.hidden = !accentCtx.accentOverride;
@@ -801,11 +855,11 @@
                 mark(effectiveAccent(accentCtx));
                 seedDialog(effectiveAccent(accentCtx));
             } else {
-                accentLabel.textContent = "Accent";
+                accentHead.textContent = T("accent.label", "Accent");
                 accentHint.textContent =
-                    "One seed re-themes the whole desktop. An app that brings " +
-                    "its own accent keeps it — that is the app's identity, not " +
-                    "yours, unless you repaint it from its tile or from in here.";
+                    T("accent.hint", "One seed re-themes the whole desktop. An app that " +
+                      "brings its own accent keeps it — that is the app's identity, not " +
+                      "yours, unless you repaint it from its tile or from in here.");
                 accentRow.hidden = true;
                 mark(storedAccent() || "#3b82f6");
                 seedDialog(null);
@@ -832,32 +886,36 @@
 
         wrap.querySelector(".remove-all").addEventListener("click", async () => {
             if (!installed.length) {
-                if (typeof sac.toast === "function") sac.toast("Nothing installed.", { kind: "info" });
+                if (typeof sac.toast === "function") sac.toast(T("toast.nothing", "Nothing installed."), { kind: "info" });
                 return;
             }
             const stored = (await Promise.all(installed.map(dataOf))).filter(Boolean);
             const items = stored.reduce((n, d) => n + d.count, 0);
             const unsaved = installed.filter((m) => hasUnsaved(m.id)).map((m) => m.name);
             const buttons = [
-                { action: "cancel", label: "Cancel", kind: "default" },
-                { action: "wipe", label: stored.length ? "Remove, keep data" : "Remove all",
+                { action: "cancel", label: T("common.cancel", "Cancel"), kind: "default" },
+                { action: "wipe",
+                  label: stored.length ? T("remove.keep", "Remove, keep data") : T("remove-all.remove", "Remove all"),
                   kind: "destructive", armAfterMs: 1200 },
             ];
             if (stored.length) {
-                buttons.push({ action: "purge", label: "Remove + delete data",
+                buttons.push({ action: "purge", label: T("remove.purge", "Remove + delete data"),
                                kind: "destructive", armAfterMs: 1200 });
             }
 
             const answer = await sac.dialog.confirm({
-                title: `Remove all ${installed.length} apps?`,
+                title: T("remove-all.title", "Remove all {n} apps?", { n: installed.length }),
                 message:
-                    (unsaved.length ? `${andList(unsaved)} ${unsaved.length === 1 ? "is" : "are"} ` +
-                                      `open with unsaved work, which is lost.\n\n` : "") +
-                    "This browser's desktop is emptied. Every app stays where it lives — " +
-                    "nothing is deleted at any origin." +
-                    (stored.length ? `\n\n${stored.length} of them stored ${items} item` +
-                                     `${items === 1 ? "" : "s"} here. That is your work, so it is ` +
-                                     `kept unless you say otherwise.` : ""),
+                    (unsaved.length
+                        ? (unsaved.length === 1
+                            ? T("remove-all.unsaved-one", "{names} is open with unsaved work, which is lost.", { names: andList(unsaved) })
+                            : T("remove-all.unsaved", "{names} are open with unsaved work, which is lost.", { names: andList(unsaved) })) + "\n\n"
+                        : "") +
+                    T("remove-all.body", "This browser's desktop is emptied. Every app stays where " +
+                      "it lives — nothing is deleted at any origin.") +
+                    (stored.length ? "\n\n" + T("remove-all.data", "{n} of them stored {items} here. " +
+                                     "That is your work, so it is kept unless you say otherwise.",
+                                     { n: stored.length, items: itemsText(items) }) : ""),
                 buttons,
             });
             if (answer !== "wipe" && answer !== "purge") return;
@@ -904,12 +962,11 @@
             orphanBtn.hidden = !has;
             if (!has) return;
             const bytes = orphans.reduce((n, o) => n + o.bytes, 0);
-            const size = bytes < 1024 ? `${bytes} bytes` : `${Math.round(bytes / 1024)} KB`;
-            orphanLine.textContent =
-                `${size} of data belongs to ${orphans.length} app` +
-                `${orphans.length === 1 ? "" : "s"} that ${orphans.length === 1 ? "is" : "are"} ` +
-                `not on this desktop (${orphans.map((o) => o.id).join(", ")}). ` +
-                `Reinstalling picks it up again — deleting it here cannot be undone.`;
+            const vars = { size: sizeText(bytes), n: orphans.length, ids: orphans.map((o) => o.id).join(", ") };
+            orphanLine.textContent = (orphans.length === 1
+                ? T("orphans.line-one", "{size} of data belongs to 1 app that is not on this desktop ({ids}).", vars)
+                : T("orphans.line", "{size} of data belongs to {n} apps that are not on this desktop ({ids}).", vars)) +
+                " " + T("orphans.line-tail", "Reinstalling picks it up again — deleting it here cannot be undone.");
             orphanBtn._orphans = orphans;
         }
 
@@ -917,14 +974,13 @@
             const orphans = orphanBtn._orphans || [];
             if (!orphans.length) return;
             const answer = await sac.dialog.confirm({
-                title: "Delete leftover data?",
-                message:
-                    `Everything ${orphans.map((o) => o.id).join(", ")} stored in this browser is ` +
-                    `deleted. The apps are already gone from this desktop; this is their work.\n\n` +
-                    `It cannot be undone.`,
+                title: T("orphans.title", "Delete leftover data?"),
+                message: T("orphans.body", "Everything {ids} stored in this browser is deleted. " +
+                    "The apps are already gone from this desktop; this is their work.\n\n" +
+                    "It cannot be undone.", { ids: orphans.map((o) => o.id).join(", ") }),
                 buttons: [
-                    { action: "cancel", label: "Cancel", kind: "default" },
-                    { action: "purge", label: "Delete", kind: "destructive", armAfterMs: 1200 },
+                    { action: "cancel", label: T("common.cancel", "Cancel"), kind: "default" },
+                    { action: "purge", label: T("common.delete", "Delete"), kind: "destructive", armAfterMs: 1200 },
                 ],
             });
             if (answer !== "purge") return;
@@ -946,10 +1002,10 @@
             const data = store ? await usageOf(store) : null;
             filesBtn.hidden = !data;
             filesLine.textContent = data
-                ? `Your files — what apps open from and save to — are here too: ` +
-                  `${data.text}, shared by every app on this desktop.`
-                : "Files you save from an app land here too, in one space every " +
-                  "app on this desktop shares. Nothing is saved yet.";
+                ? T("files.line", "Your files — what apps open from and save to — are here too: " +
+                    "{data}, shared by every app on this desktop.", { data: data.text })
+                : T("files.empty", "Files you save from an app land here too, in one space every " +
+                    "app on this desktop shares. Nothing is saved yet.");
         }
 
         filesBtn.addEventListener("click", async () => {
@@ -957,14 +1013,13 @@
             const data = store ? await usageOf(store) : null;
             if (!data) { showFiles(); return; }
             const answer = await sac.dialog.confirm({
-                title: "Delete your files?",
-                message:
-                    `The ${data.text} every app on this desktop opens from and saves ` +
-                    `to are deleted from this browser. Files you saved to this device ` +
-                    `instead are not touched.\n\nIt cannot be undone.`,
+                title: T("files.title", "Delete your files?"),
+                message: T("files.body", "The {data} every app on this desktop opens from and " +
+                    "saves to are deleted from this browser. Files you saved to this device " +
+                    "instead are not touched.\n\nIt cannot be undone.", { data: data.text }),
                 buttons: [
-                    { action: "cancel", label: "Cancel", kind: "default" },
-                    { action: "purge", label: "Delete", kind: "destructive", armAfterMs: 1200 },
+                    { action: "cancel", label: T("common.cancel", "Cancel"), kind: "default" },
+                    { action: "purge", label: T("common.delete", "Delete"), kind: "destructive", armAfterMs: 1200 },
                 ],
             });
             if (answer !== "purge") return;
@@ -976,6 +1031,18 @@
         // Recount on every opening: apps come and go between them — and the
         // accent section speaks for whatever is on stage right now.
         dlg.addEventListener("sac:open", () => { showOrphans(); showFiles(); fillIdentity(); paintAccent(); });
+
+        // The language toggle lives in here, so a switch happens with the
+        // dialog open: everything it drew follows in place.
+        const paintText = () => {
+            dlg.setAttribute("title", T("settings.title", "Settings"));
+            custom.setAttribute("label", T("accent.custom", "Custom"));
+            relabel(wrap);
+        };
+        paintText();
+        if (window.sac.lang) {
+            sac.lang.onChange(() => { paintText(); paintAccent(); showFiles(); showOrphans(); });
+        }
         // A dialog dismissed with Escape still means what was typed in it.
         dlg.addEventListener("sac:action", commitIdentity);
         dlg.addEventListener("sac:action", () => { /* stays in the DOM */ });
@@ -999,29 +1066,26 @@
         const win = sac.about.open({
             name: "SACRVM DESKTOP",
             icon: "cube",
-            description: "A desktop you fill yourself — every app on it " +
-                "comes from somebody else's repository.",
+            description: T("about.description", "A desktop you fill yourself — every app " +
+                "on it comes from somebody else's repository."),
             notices: [
-                { title: "Yours, in this browser",
-                  text: "Apps, settings and the files you save live in this " +
-                        "browser's storage — " +
-                        "there is no server and no account. Another visitor " +
-                        "to this address sees an empty desktop." },
-                { title: "Installing is remembering a URL",
-                  text: "The desktop reads the app's manifest from the " +
-                        "address you paste — a fetch, not an execution — and " +
-                        "shows what it says before you confirm. The app's " +
-                        "code loads only when you first open it, and " +
-                        "removing an app forgets the address again." },
-                { title: "What an app may do",
-                  text: "An installed app runs its own code in this page. " +
-                        "Install what you trust, the way you would a browser " +
-                        "extension — the origin is on every tile for exactly " +
-                        "that reason." },
-                { title: "Built on",
-                  text: "SACRVM APPKIT, MIT — vendored verbatim in this " +
-                        "repository; kit/VERSION names the release. Its own " +
-                        "third-party notices live in the appkit repository." },
+                { title: T("about.yours-title", "Yours, in this browser"),
+                  text: T("about.yours", "Apps, settings and the files you save live in " +
+                        "this browser's storage — there is no server and no account. " +
+                        "Another visitor to this address sees an empty desktop.") },
+                { title: T("about.url-title", "Installing is remembering a URL"),
+                  text: T("about.url", "The desktop reads the app's manifest from the " +
+                        "address you paste — a fetch, not an execution — and shows what it " +
+                        "says before you confirm. The app's code loads only when you first " +
+                        "open it, and removing an app forgets the address again.") },
+                { title: T("about.trust-title", "What an app may do"),
+                  text: T("about.trust", "An installed app runs its own code in this page. " +
+                        "Install what you trust, the way you would a browser extension — " +
+                        "the origin is on every tile for exactly that reason.") },
+                { title: T("about.built-title", "Built on"),
+                  text: T("about.built", "SACRVM APPKIT, MIT — vendored verbatim in this " +
+                        "repository; kit/VERSION names the release. Its own third-party " +
+                        "notices live in the appkit repository.") },
             ],
         });
         // The long version, as a link the surface itself cannot carry
@@ -1035,7 +1099,7 @@
             a.href = "how.html";
             a.target = "_blank";
             a.rel = "noopener";
-            a.textContent = "The long version — how this works, in full";
+            a.textContent = T("about.more", "The long version — how this works, in full");
             p.appendChild(a);
             body.appendChild(p);
         }
@@ -1078,15 +1142,15 @@
                 // The palette, made visible: Ctrl-K is a power feature nobody
                 // can see. The button is the affordance, its tooltip teaches
                 // the key — the platform's own (⌘K on a Mac), not ours.
-                { icon: "search", title: `Apps & commands — ${PALETTE_KEY}`,
+                { icon: "search", title: T("host.palette", "Apps & commands — {key}", { key: PALETTE_KEY }),
                   onClick: () => { if (window.sac.palette) sac.palette.open(); } },
                 // The subject is IN the tooltip: injected, this button sits in
                 // a ribbon that may hold the app's own info entry too, and a
                 // bare label cannot say which of the two it reaches.
-                { icon: "info", title: "About SACRVM DESKTOP", onClick: openInfo },
+                { icon: "info", title: T("host.about", "About SACRVM DESKTOP"), onClick: openInfo },
                 me ? { avatar: { name: me.name, src: me.avatar || undefined },
-                       title: `You: ${me.name} · Settings`, onClick: openSettings }
-                   : { icon: "settings", title: "Settings", onClick: openSettings },
+                       title: T("host.you", "You: {name} · Settings", { name: me.name }), onClick: openSettings }
+                   : { icon: "settings", title: T("settings.title", "Settings"), onClick: openSettings },
             ],
         };
     }
@@ -1121,7 +1185,7 @@
         });
         wanted.forEach((m, id) => sac.commands.register({
             id,
-            label: `Open ${m.name}`,
+            label: T("palette.open", "Open {name}", { name: m.name }),
             icon: m.icon || "cube",
             group,
             run: () => { refreshManifest(m.id); sac.apps.open(m.id); },
@@ -1137,6 +1201,10 @@
     /* --------------------------------------------------------------- boot */
 
     function boot() {
+        // The desktop's own translations (i18n.js), next to the kit's.
+        if (window.desktopStrings && sac.i18n && typeof sac.i18n.add === "function") {
+            Object.entries(window.desktopStrings).forEach(([lang, table]) => sac.i18n.add(lang, table));
+        }
         installed = load();
         // The ?app= deep link, captured before sac.apps.init() strips it —
         // arriving on it IS opening that app, so its snapshot refreshes too.
@@ -1185,9 +1253,21 @@
         });
         // Identity is part of the package (the you-button in both ribbons).
         if (window.sac.identity) sac.identity.onChange(declareHost);
-        // The palette's "Apps" heading is a kit string: re-register on a
-        // language switch so it follows.
-        if (window.sac.lang) sac.lang.onChange(syncCommands);
+        // A language switch re-renders what the desktop drew itself: tiles,
+        // the injected ribbon, the palette entries. The About is rebuilt
+        // (its notices are ours, the kit only relabels its own title), and
+        // reopened if it was showing. An app already on stage keeps the
+        // package it mounted with, like after any re-declare.
+        if (window.sac.lang) sac.lang.onChange(() => {
+            renderTiles();
+            declareHost();
+            const about = document.querySelector('sac-window[data-about="about:SACRVM DESKTOP"]');
+            if (about) {
+                const wasOpen = about.hasAttribute("open");
+                about.remove();
+                if (wasOpen) openInfo();
+            }
+        });
 
         // ?install=<url> installs by link — how you hand somebody an app.
         const wanted = new URLSearchParams(location.search).get("install");

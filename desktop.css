@@ -1,6 +1,12 @@
 /* SACRVM DESKTOP — shell-local layout only. Every value is a kit token; the
    desktop adds no colours of its own, so a theme swap carries it whole. */
 
+/* Static prose in two languages: sac.lang mirrors the language onto
+   <html lang>, and only the matching block shows. English is the default,
+   so a page before the kit loads (or in any other language) reads English. */
+:root[lang|="de"] [data-lang="en"],
+:root:not([lang|="de"]) [data-lang="de"] { display: none; }
+
 .section {
     max-width: 1400px;
     margin: 0 auto;

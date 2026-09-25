@@ -26,6 +26,7 @@
          it chooses. A desktop hosts apps it does not know in advance, so it
          loads the whole kit rather than cherry-picking. -->
     <script defer src="kit/js/all.js"></script>
+    <script defer src="i18n.js"></script>
     <script defer src="desktop.js"></script>
 </head>
 <body class="app-page">
@@ -52,12 +53,22 @@
             <div class="hub-container">
                 <header>
                     <h1>SACRVM DESKTOP</h1>
-                    <p class="intro-text">
+                    <!-- One paragraph per language; <html lang> (set by
+                         sac.lang) decides which one shows — desktop.css. -->
+                    <p class="intro-text" data-lang="en">
                         A desktop you fill yourself. Paste the URL of an app repository and it
                         is installed — the desktop remembers where the app lives, never a copy
                         of it. Make it yours in <strong>Settings</strong>, or read
                         <strong>About SACRVM DESKTOP</strong> — both up in the ribbon.
                         And wherever you are, <strong>Ctrl&nbsp;K</strong> summons any app.
+                    </p>
+                    <p class="intro-text" data-lang="de">
+                        Ein Desktop, den du selbst füllst. Füge die URL eines App-Repositorys
+                        ein, und die App ist installiert — der Desktop merkt sich, wo sie
+                        lebt, nie eine Kopie davon. Richte ihn in den
+                        <strong>Einstellungen</strong> ein oder lies
+                        <strong>Über SACRVM DESKTOP</strong> — beides oben in der Leiste.
+                        Und wo immer du bist, holt <strong>Strg&nbsp;K</strong> jede App.
                     </p>
                 </header>
 

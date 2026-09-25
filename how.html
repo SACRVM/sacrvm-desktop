@@ -26,16 +26,26 @@
         // rail beside the prose, and the burger — nested under this page's
         // own entry, the way an app's sections nest in its suite tree. Both
         // lists are built FROM the headings, so neither can drift from the
-        // prose. Gated on sac:ready: assigning component properties before
-        // the elements upgrade would shadow the class setters.
+        // prose. Every section holds one block per language (desktop.css
+        // shows the one <html lang> names); the lists read the headings of
+        // the language on screen and are rebuilt on a switch. Gated on
+        // sac:ready: assigning component properties before the elements
+        // upgrade would shadow the class setters.
+        const TEXT = {
+            en: { page: "How this works", chapters: "Chapters" },
+            de: { page: "So funktioniert's", chapters: "Kapitel" },
+        };
+        const lang = () => (document.documentElement.lang || "en").startsWith("de") ? "de" : "en";
+
         function toc() {
             const sections = [...document.querySelectorAll(".doc section[id]")];
+            const text = TEXT[lang()];
             const chapters = sections.map((s) => ({
                 // Full-path form, not "#id": bare-hash hrefs go through the
                 // nav's route scoping ("#x" becomes "#/x") — these are
                 // fragment jumps on THIS page, so they carry their own path
                 // and stay exactly what they say.
-                label: s.querySelector("h2").textContent,
+                label: s.querySelector(`[data-lang="${lang()}"] h2`).textContent,
                 href: location.pathname + "#" + s.id,
                 id: s.id,
             }));
@@ -44,21 +54,31 @@
             // page's entry matches the current address, so the nav nests the
             // sections under it as sub-entries.
             const nav = document.querySelector("sac-nav");
+            nav.setAttribute("brand", text.page);
             nav.host = {
                 href: "./", name: "SACRVM DESKTOP", icon: "cube",
-                nav: [{ label: "How this works", href: location.pathname, icon: "info" }],
+                nav: [{ label: text.page, href: location.pathname, icon: "info" }],
             };
             nav.sections = chapters.map(({ label, href }) => ({ label, href }));
+            document.title = `${text.page} — SACRVM DESKTOP`;
 
             // Rail: the same chapters, always in sight, following the read.
             const rail = document.querySelector("sac-sidebar");
-            const scroller = document.querySelector(".doc-scroll");
-            let activeId = null;
-            const paint = () => {
-                rail.items = [{ section: "Chapters" }].concat(chapters.map((c) => ({
+            paint = () => {
+                rail.items = [{ section: text.chapters }].concat(chapters.map((c) => ({
                     label: c.label, href: c.href, active: c.id === activeId,
                 })));
             };
+            paint();
+        }
+
+        let activeId = null;
+        let paint = () => {};
+
+        function boot() {
+            toc();
+            const sections = [...document.querySelectorAll(".doc section[id]")];
+            const scroller = document.querySelector(".doc-scroll");
             const spy = () => {
                 // The chapter being read: the last one whose top passed the
                 // reading line under the fixed ribbon.
@@ -70,9 +90,10 @@
             };
             scroller.addEventListener("scroll", spy, { passive: true });
             spy();
+            if (window.sac.lang) sac.lang.onChange(toc);
         }
-        if (window.sacReady) toc();
-        else document.addEventListener("sac:ready", toc, { once: true });
+        if (window.sacReady) boot();
+        else document.addEventListener("sac:ready", boot, { once: true });
     </script>
 </head>
 <body class="doc-page">
@@ -86,15 +107,22 @@
         <sac-sidebar width="240px"></sac-sidebar>
         <div class="doc-scroll">
             <div class="hub-container">
-                <header>
+                <header data-lang="en">
             <h1>How this works</h1>
             <p class="intro-text">The long version of About SACRVM DESKTOP.
                The short one sits behind the (i) in the ribbon —
                <a href="./">back to the desktop</a>.</p>
         </header>
+                <header data-lang="de">
+            <h1>So funktioniert's</h1>
+            <p class="intro-text">Die lange Version von „Über SACRVM DESKTOP“.
+               Die kurze steckt hinter dem (i) in der Leiste —
+               <a href="./">zurück zum Desktop</a>.</p>
+        </header>
 
         <main class="doc">
             <section id="whose">
+              <div data-lang="en">
                 <h2>Whose desktop is this?</h2>
                 <p><strong>Yours, and only in this browser.</strong> Your installed
                    apps and settings live in this browser's storage, on this device.
@@ -102,9 +130,20 @@
                    sees a different one. There is no server and no account — nothing
                    you do here leaves this device unless an app you installed sends
                    it somewhere.</p>
+              </div>
+              <div data-lang="de">
+                <h2>Wessen Desktop ist das?</h2>
+                <p><strong>Deiner, und nur in diesem Browser.</strong> Deine
+                   installierten Apps und Einstellungen liegen im Speicher dieses
+                   Browsers, auf diesem Gerät. Wer diese Adresse sonst besucht, sieht
+                   einen leeren Desktop; dein Handy sieht einen anderen. Es gibt keinen
+                   Server und kein Konto — nichts, was du hier tust, verlässt dieses
+                   Gerät, außer eine App, die du installiert hast, schickt es irgendwohin.</p>
+              </div>
             </section>
 
             <section id="origins">
+              <div data-lang="en">
                 <h2>Where do the apps live?</h2>
                 <p>At their own origin — <code>owner.github.io/repo/</code> — never
                    here. Installing stores the address and the manifest that was read
@@ -112,9 +151,20 @@
                    <strong>Removing an app forgets that address in this
                    browser.</strong> Nothing is deleted at the origin, and nothing
                    on GitHub.</p>
+              </div>
+              <div data-lang="de">
+                <h2>Wo leben die Apps?</h2>
+                <p>An ihrer eigenen Herkunft — <code>owner.github.io/repo/</code> —
+                   nie hier. Installieren speichert die Adresse und das Manifest, das
+                   dort gelesen wurde, sodass die nächste Version des Autors einfach da
+                   ist. <strong>Eine App zu entfernen vergisst diese Adresse in diesem
+                   Browser.</strong> An der Herkunft wird nichts gelöscht, und auf
+                   GitHub auch nicht.</p>
+              </div>
             </section>
 
             <section id="your-data">
+              <div data-lang="en">
                 <h2>And what you write in them?</h2>
                 <p>Also here, in this browser — each app gets its own drawer, and it
                    can only reach its own. Removing an app <strong>keeps</strong> what
@@ -128,9 +178,28 @@
                    your device's own files one click away in the same dialog. No
                    app's removal touches it; Settings says how much is in it and
                    is the one place that deletes it.</p>
+              </div>
+              <div data-lang="de">
+                <h2>Und was du darin schreibst?</h2>
+                <p>Auch hier, in diesem Browser — jede App bekommt ihre eigene
+                   Schublade und kommt nur an ihre eigene heran. Eine App zu entfernen
+                   <strong>behält</strong>, was sie gespeichert hat, sodass eine
+                   Neuinstallation deine Arbeit zurückbringt; der Entfernen-Dialog
+                   bietet an, es mitzulöschen, und sagt, wie viel es ist. Die
+                   Einstellungen listen die Schubladen von Apps, die weg sind, falls du
+                   sie aufräumen willst.</p>
+                <p><strong>Dateien, die du speicherst,</strong> sind die Ausnahme von
+                   den Schubladen: <em>Öffnen …</em> und <em>Speichern unter …</em>
+                   einer App gehen in einen Dateibereich, den alle Apps auf diesem
+                   Desktop teilen — auch der liegt in diesem Browser, und die Dateien
+                   deines Geräts sind im selben Dialog einen Klick entfernt. Kein
+                   Entfernen einer App berührt ihn; die Einstellungen sagen, wie viel
+                   darin liegt, und sind der einzige Ort, der ihn löscht.</p>
+              </div>
             </section>
 
             <section id="which-apps">
+              <div data-lang="en">
                 <h2>Which apps can go on it?</h2>
                 <p><strong>SACRVM APPKIT apps — and only those.</strong> Concretely: a
                    repository whose GitHub Pages serves an <code>app.json</code> in its
@@ -140,9 +209,23 @@
                    to read, and pasting it will politely fail. There is no review queue,
                    no approval and no account. If it has a manifest, it installs; if it
                    has none, there is nothing to install.</p>
+              </div>
+              <div data-lang="de">
+                <h2>Welche Apps passen darauf?</h2>
+                <p><strong>SACRVM-APPKIT-Apps — und nur die.</strong> Konkret: ein
+                   Repository, dessen GitHub Pages im Stammverzeichnis eine
+                   <code>app.json</code> ausliefert, neben dem einen Custom Element,
+                   das die App ist. Dieses Manifest ist der ganze Grund, warum ein
+                   Desktop etwas installieren kann, das er nie gesehen hat.</p>
+                <p>Jedes andere Repository — so gut das Projekt auch ist — hat hier
+                   nichts zu lesen, und es einzufügen scheitert höflich. Es gibt keine
+                   Prüfung, keine Freigabe und kein Konto. Hat es ein Manifest, lässt
+                   es sich installieren; hat es keins, gibt es nichts zu installieren.</p>
+              </div>
             </section>
 
             <section id="installing">
+              <div data-lang="en">
                 <h2>What installing does</h2>
                 <ol class="steps">
                     <li>You paste <code>github.com/owner/repo</code> — or pick an app
@@ -159,9 +242,30 @@
                 <p class="note">An installed app runs its own code in this page. Install
                    what you trust, the way you would a browser extension — the origin is
                    on every tile for exactly that reason.</p>
+              </div>
+              <div data-lang="de">
+                <h2>Was Installieren tut</h2>
+                <ol class="steps">
+                    <li>Du fügst <code>github.com/owner/repo</code> ein — oder wählst
+                        eine App im App Store.</li>
+                    <li>Der Desktop liest <code>owner.github.io/repo/app.json</code> —
+                        ein Abruf, keine Ausführung.</li>
+                    <li>Er zeigt dir, was im Manifest steht und woher es kommt.</li>
+                    <li>Du bestätigst. Erst dann wird das Skript der App überhaupt
+                        geladen, und erst, wenn du die App zum ersten Mal öffnest.</li>
+                </ol>
+                <p><code>?install=&lt;url&gt;</code> in der Adresse des Desktops macht
+                   dasselbe per Link — so gibst du jemandem eine App weiter. Das
+                   Manifest wird trotzdem gezeigt, und es wartet trotzdem auf ein Ja.</p>
+                <p class="note">Eine installierte App führt ihren eigenen Code in dieser
+                   Seite aus. Installiere, was du vertraust, so wie bei einer
+                   Browser-Erweiterung — genau deshalb steht die Herkunft auf jeder
+                   Kachel.</p>
+              </div>
             </section>
 
             <section id="opening">
+              <div data-lang="en">
                 <h2>Opening apps, from anywhere</h2>
                 <p>The tile is only the first door. Once installed, an app is
                    reachable without going home:</p>
@@ -180,9 +284,31 @@
                 </ul>
                 <p class="note">Palette and burger are the kit's — every app on
                    this desktop answers them, current and future ones alike.</p>
+              </div>
+              <div data-lang="de">
+                <h2>Apps öffnen, von überall</h2>
+                <p>Die Kachel ist nur die erste Tür. Einmal installiert, ist eine App
+                   erreichbar, ohne zurück zum Start zu gehen:</p>
+                <ul class="steps">
+                    <li><strong>Das Burger-Menü</strong> — das Menü in der Leiste jeder
+                        App listet den ganzen Desktop, in Kachel-Reihenfolge. Eine
+                        Fenster-App öffnet sich genau da, wo du bist; was du gerade
+                        machst, bleibt dahinter stehen.</li>
+                    <li><strong>Strg&nbsp;K</strong> (⌘K auf dem Mac) — die
+                        Befehlspalette, auch hinter der Lupe in der Leiste. Ein paar
+                        Buchstaben tippen, Enter: Die App öffnet sich an Ort und Stelle.</li>
+                    <li><strong>Ein Link</strong> — <code>?app=&lt;id&gt;</code> in der
+                        Adresse des Desktops öffnet diese Fenster-App beim Ankommen;
+                        ein Mittelklick auf einen Eintrag im Burger-Menü landet genauso,
+                        in einem neuen Tab.</li>
+                </ul>
+                <p class="note">Palette und Burger-Menü kommen von der Kit — jede App
+                   auf diesem Desktop reagiert darauf, heutige und künftige.</p>
+              </div>
             </section>
 
             <section id="get-started">
+              <div data-lang="en">
                 <h2>Nothing to open yet?</h2>
                 <p>Open the <strong>App Store</strong>: the <strong>+</strong> tile at
                    the end of the grid, then the <em>App Store</em> tab. It lists
@@ -197,6 +323,25 @@
                 <p class="note">The store's list comes from GitHub: the SACRVM
                    repositories tagged <code>sacrvm-app</code>, each with its manifest
                    read. GitHub is only asked when you open the tab.</p>
+              </div>
+              <div data-lang="de">
+                <h2>Noch nichts zum Öffnen?</h2>
+                <p>Öffne den <strong>App Store</strong>: die <strong>+</strong>-Kachel
+                   am Ende des Rasters, dann der Tab <em>App Store</em>. Er listet
+                   SACRVMs eigene Apps, und <em>Installieren</em> läuft über den
+                   normalen Weg: Manifest und Herkunft werden gezeigt, deine
+                   Bestätigung wird abgefragt. Apps, die schon auf diesem Desktop sind,
+                   sind ausgegraut.</p>
+                <p>Oder schreib deine eigene:
+                   <a href="https://sacrvm.github.io/sacrvm-appkit/#/build" target="_blank" rel="noopener">wie
+                   eine App gebaut wird</a>, von Anfang bis Ende — ein Manifest, ein
+                   Custom Element und ein
+                   <a href="https://github.com/SACRVM/sacrvm-app-template" target="_blank" rel="noopener">Vorlagen-Repository</a>
+                   zum Starten (<em>Use this template</em>).</p>
+                <p class="note">Die Liste des Stores kommt von GitHub: die
+                   SACRVM-Repositorys mit dem Topic <code>sacrvm-app</code>, jeweils mit
+                   gelesenem Manifest. GitHub wird erst gefragt, wenn du den Tab öffnest.</p>
+              </div>
             </section>
         </main>
             </div>
