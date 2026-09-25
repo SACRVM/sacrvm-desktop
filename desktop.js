@@ -219,12 +219,16 @@
        manifest's accent is stripped, and the kit seeds nothing. The stored
        entry keeps both fields, so "App's shipped color" can always return. */
     const withAccent = (m) => {
-        if (followsDesktop(m)) {
-            const copy = Object.assign({}, m);
-            delete copy.accent;
-            return copy;
-        }
-        return m.accentOverride ? Object.assign({}, m, { accent: m.accentOverride }) : m;
+        const copy = Object.assign({}, m);
+        if (followsDesktop(m)) delete copy.accent;
+        else if (m.accentOverride) copy.accent = m.accentOverride;
+        // Every app is an app, whether it takes the stage or floats: the
+        // desktop lists them all itself (burger, Ctrl-K "Apps"), so a view
+        // registers no router route of its own — else the palette would file
+        // it under "Views", apart from the window apps. Its #/<id> address
+        // keeps working; sac.apps routes by its registry, not the router's.
+        if (m.kind === "view") copy.nav = false;
+        return copy;
     };
 
     function setTileAccent(manifest, value) {
@@ -1084,25 +1088,24 @@
         };
     }
 
-    /* Home's own ribbon eats the SAME toolbar the package injects into every
-       app — no href/name, so no jump-home segment to itself. One source, one
-       renderer (the kit's host-tools path), zero drift. */
+    /* Home's own ribbon eats the SAME toolbar and app list the package
+       injects into every app — no href/name, so no jump-home segment to
+       itself. One source, one renderer (the kit's host path), zero drift. */
     function paintHomeTools() {
         const nav = document.querySelector("#app-home sac-nav");
-        if (nav) nav.host = { toolbar: hostPackage().toolbar };
+        if (!nav) return;
+        const { toolbar, nav: apps } = hostPackage();
+        nav.host = { toolbar, nav: apps };
     }
 
-    /* Window apps into the Ctrl-K palette. The palette lists every registered
-       route live, so view apps come free — but a window app has no route, and
-       this is its summon-from-anywhere entry: Calculator over your notes,
-       without leaving them. Upsert by id; ids the desktop once registered and
-       no longer wants are unregistered, and the prefix keeps the desktop out
-       of any app's own command namespace. */
+    /* Every installed app into the Ctrl-K palette, one "Apps" group in tile
+       order — views and window apps alike, since which of the two an app is
+       says nothing to the person looking for it. Upsert by id; ids the
+       desktop once registered and no longer wants are unregistered, and the
+       prefix keeps the desktop out of any app's own command namespace. */
     function syncCommands() {
         if (!window.sac || !sac.commands) return;
-        const wanted = new Map(installed
-            .filter((m) => m.kind !== "view")
-            .map((m) => ["desktop:open:" + m.id, m]));
+        const wanted = new Map(installed.map((m) => ["desktop:open:" + m.id, m]));
         sac.commands.list().forEach((c) => {
             if (c.id.startsWith("desktop:open:") && !wanted.has(c.id)) {
                 sac.commands.unregister(c.id);
