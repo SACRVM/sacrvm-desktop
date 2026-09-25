@@ -745,10 +745,6 @@
                    data-t-placeholder="settings.name" autocomplete="off" maxlength="80">
             <input type="url" id="me-avatar-src" class="me-avatar-src"
                    placeholder="Picture URL (optional)" data-t-placeholder="settings.picture" autocomplete="off">
-            <p class="hint" data-t="settings.you-hint">Apps can read this to greet you and colour your avatar.
-               It is a name in this browser, nothing more — no account, no
-               password, nothing verified, and nothing leaves this device unless
-               an app you installed sends it.</p>
 
             <label data-t="settings.theme">Theme</label>
             <sac-theme-toggle></sac-theme-toggle>
@@ -765,18 +761,17 @@
                 <button type="button" class="btn accent-reset" data-t="accent.shipped" hidden>App's shipped color</button>
                 <button type="button" class="btn accent-desktop" data-t="accent.desktop" hidden>Desktop's color</button>
             </div>
-            <p class="hint accent-hint"></p>
 
             <label data-t="settings.this-desktop">This desktop</label>
-            <p class="hint" data-t="settings.this-desktop-hint">Your apps and these settings live in this browser,
-               on this device. Nobody else sees them, and there is no account
-               to lose them with.</p>
-            <p class="hint files-line"></p>
-            <p class="hint orphans" hidden></p>
+            <div class="settings-actions">
+                <button type="button" class="btn about-open" data-t="settings.about">About SACRVM DESKTOP</button>
+            </div>
+            <!-- The counts ride on the buttons; what the data is and where it
+                 lives is the About's to say, not this dialog's. -->
             <div class="settings-actions">
                 <button type="button" class="btn danger remove-all" data-t="settings.remove-all">Remove all apps</button>
-                <button type="button" class="btn danger clear-files" data-t="settings.clear-files" hidden>Delete your files</button>
-                <button type="button" class="btn danger clear-orphans" data-t="settings.clear-orphans" hidden>Delete leftover data</button>
+                <button type="button" class="btn danger clear-files" hidden></button>
+                <button type="button" class="btn danger clear-orphans" hidden></button>
             </div>
         `;
         dlg.appendChild(wrap);
@@ -807,7 +802,6 @@
         const grid        = wrap.querySelector(".accent-swatches");
         const custom      = wrap.querySelector(".accent-custom");
         const accentHead  = wrap.querySelector(".accent-label");
-        const accentHint  = wrap.querySelector(".accent-hint");
         const accentReset   = wrap.querySelector(".accent-reset");
         const accentDesktop = wrap.querySelector(".accent-desktop");
         const accentRow     = wrap.querySelector(".accent-actions");
@@ -841,14 +835,6 @@
             if (accentCtx) {
                 const vars = { name: accentCtx.name };
                 accentHead.textContent = T("accent.app-label", "Accent — {name}", vars);
-                accentHint.textContent =
-                    T("accent.app-hint", "This recolors {name} on this desktop: the app " +
-                      "behind this dialog and its tile follow along. Your desktop's own " +
-                      "accent is set from the home screen.", vars) +
-                    (followsDesktop(accentCtx)
-                        ? " " + T("accent.app-follows", "Right now it wears your desktop's " +
-                                  "accent and follows it live.")
-                        : "");
                 accentRow.hidden = false;
                 accentReset.hidden = !accentCtx.accentOverride;
                 accentDesktop.hidden = followsDesktop(accentCtx);
@@ -856,10 +842,6 @@
                 seedDialog(effectiveAccent(accentCtx));
             } else {
                 accentHead.textContent = T("accent.label", "Accent");
-                accentHint.textContent =
-                    T("accent.hint", "One seed re-themes the whole desktop. An app that " +
-                      "brings its own accent keeps it — that is the app's identity, not " +
-                      "yours, unless you repaint it from its tile or from in here.");
                 accentRow.hidden = true;
                 mark(storedAccent() || "#3b82f6");
                 seedDialog(null);
@@ -936,7 +918,6 @@
         /* Data an app left behind. Removing an app keeps its work on purpose,
            which is right until the app is never coming back — then it is
            invisible clutter, and only the desktop can see it at all. */
-        const orphanLine = wrap.querySelector(".orphans");
         const orphanBtn  = wrap.querySelector(".clear-orphans");
 
         async function findOrphans() {
@@ -958,15 +939,10 @@
         async function showOrphans() {
             const orphans = await findOrphans();
             const has = orphans.length > 0;
-            orphanLine.hidden = !has;
             orphanBtn.hidden = !has;
             if (!has) return;
             const bytes = orphans.reduce((n, o) => n + o.bytes, 0);
-            const vars = { size: sizeText(bytes), n: orphans.length, ids: orphans.map((o) => o.id).join(", ") };
-            orphanLine.textContent = (orphans.length === 1
-                ? T("orphans.line-one", "{size} of data belongs to 1 app that is not on this desktop ({ids}).", vars)
-                : T("orphans.line", "{size} of data belongs to {n} apps that are not on this desktop ({ids}).", vars)) +
-                " " + T("orphans.line-tail", "Reinstalling picks it up again — deleting it here cannot be undone.");
+            orphanBtn.textContent = T("settings.clear-orphans", "Delete leftover data ({size})", { size: sizeText(bytes) });
             orphanBtn._orphans = orphans;
         }
 
@@ -992,21 +968,18 @@
         });
 
         /* The user's files. Not an app's drawer, so neither a remove nor the
-           leftovers above ever reach them — this line is the one place they
-           are counted and the one button that deletes them. */
-        const filesLine = wrap.querySelector(".files-line");
+           leftovers above ever reach them — this button is the one place they
+           are counted and deleted. */
         const filesBtn  = wrap.querySelector(".clear-files");
 
         async function showFiles() {
             const store = userFiles();
             const data = store ? await usageOf(store) : null;
             filesBtn.hidden = !data;
-            filesLine.textContent = data
-                ? T("files.line", "Your files — what apps open from and save to — are here too: " +
-                    "{data}, shared by every app on this desktop.", { data: data.text })
-                : T("files.empty", "Files you save from an app land here too, in one space every " +
-                    "app on this desktop shares. Nothing is saved yet.");
+            if (data) filesBtn.textContent = T("settings.clear-files", "Delete your files ({size})", { size: data.text });
         }
+
+        wrap.querySelector(".about-open").addEventListener("click", openInfo);
 
         filesBtn.addEventListener("click", async () => {
             const store = userFiles();
@@ -1144,10 +1117,9 @@
                 // the key — the platform's own (⌘K on a Mac), not ours.
                 { icon: "search", title: T("host.palette", "Apps & commands — {key}", { key: PALETTE_KEY }),
                   onClick: () => { if (window.sac.palette) sac.palette.open(); } },
-                // The subject is IN the tooltip: injected, this button sits in
-                // a ribbon that may hold the app's own info entry too, and a
-                // bare label cannot say which of the two it reaches.
-                { icon: "info", title: T("host.about", "About SACRVM DESKTOP"), onClick: openInfo },
+                // No (i) here: injected into an app's ribbon it would stand
+                // next to the app's own. The desktop's About is on the home
+                // ribbon (paintHomeTools) and in Settings.
                 me ? { avatar: { name: me.name, src: me.avatar || undefined },
                        title: T("host.you", "You: {name} · Settings", { name: me.name }), onClick: openSettings }
                    : { icon: "settings", title: T("settings.title", "Settings"), onClick: openSettings },
@@ -1162,7 +1134,9 @@
         const nav = document.querySelector("#app-home sac-nav");
         if (!nav) return;
         const { toolbar, nav: apps } = hostPackage();
-        nav.host = { toolbar, nav: apps };
+        // Home adds its own (i): here it is the only one in the ribbon.
+        const about = { icon: "info", title: T("host.about", "About SACRVM DESKTOP"), onClick: openInfo };
+        nav.host = { toolbar: [toolbar[0], about, ...toolbar.slice(1)], nav: apps };
     }
 
     /* Every installed app into the Ctrl-K palette, one "Apps" group in tile

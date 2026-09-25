@@ -29,13 +29,6 @@
         "accent.custom": "Eigene",
         "accent.label": "Akzentfarbe",
         "accent.app-label": "Akzentfarbe — {name}",
-        "accent.hint": "Eine Farbe färbt den ganzen Desktop neu. Eine App mit eigener " +
-            "Akzentfarbe behält sie — das ist ihre Identität, nicht deine, es sei denn, " +
-            "du färbst sie über ihre Kachel oder hier um.",
-        "accent.app-hint": "Das färbt {name} auf diesem Desktop um: Die App hinter diesem " +
-            "Dialog und ihre Kachel ziehen mit. Die Akzentfarbe des Desktops selbst stellst " +
-            "du auf dem Startbildschirm ein.",
-        "accent.app-follows": "Gerade trägt sie die Akzentfarbe deines Desktops und folgt ihr.",
 
         "origin.unknown": "unbekannte Herkunft",
 
@@ -123,36 +116,19 @@
         "settings.you": "Du",
         "settings.name": "Dein Name",
         "settings.picture": "Bild-URL (optional)",
-        "settings.you-hint": "Apps können das lesen, um dich zu begrüßen und deinen Avatar " +
-            "einzufärben. Es ist ein Name in diesem Browser, mehr nicht — kein Konto, kein " +
-            "Passwort, nichts geprüft, und nichts verlässt dieses Gerät, außer eine App, " +
-            "die du installiert hast, schickt es weg.",
         "settings.theme": "Design",
         "settings.language": "Sprache",
         "settings.this-desktop": "Dieser Desktop",
-        "settings.this-desktop-hint": "Deine Apps und diese Einstellungen liegen in diesem " +
-            "Browser, auf diesem Gerät. Niemand sonst sieht sie, und es gibt kein Konto, " +
-            "mit dem du sie verlieren könntest.",
         "settings.remove-all": "Alle Apps entfernen",
-        "settings.clear-files": "Deine Dateien löschen",
-        "settings.clear-orphans": "Übrige Daten löschen",
+        "settings.clear-files": "Deine Dateien löschen ({size})",
+        "settings.clear-orphans": "Übrige Daten löschen ({size})",
+        "settings.about": "Über SACRVM DESKTOP",
 
-        "orphans.line-one": "{size} Daten gehören zu 1 App, die nicht auf diesem Desktop " +
-            "ist ({ids}).",
-        "orphans.line": "{size} Daten gehören zu {n} Apps, die nicht auf diesem Desktop " +
-            "sind ({ids}).",
-        "orphans.line-tail": "Eine Neuinstallation übernimmt sie wieder — hier gelöscht, " +
-            "sind sie endgültig weg.",
         "orphans.title": "Übrige Daten löschen?",
         "orphans.body": "Alles, was {ids} in diesem Browser gespeichert hat, wird gelöscht. " +
             "Die Apps sind schon nicht mehr auf diesem Desktop; das ist ihre Arbeit.\n\n" +
             "Das lässt sich nicht rückgängig machen.",
 
-        "files.line": "Deine Dateien — woraus Apps öffnen und wohin sie speichern — liegen " +
-            "auch hier: {data}, gemeinsam für alle Apps auf diesem Desktop.",
-        "files.empty": "Dateien, die du aus einer App speicherst, landen auch hier, in " +
-            "einem Bereich, den alle Apps auf diesem Desktop teilen. Noch ist nichts " +
-            "gespeichert.",
         "files.title": "Deine Dateien löschen?",
         "files.body": "Die {data}, aus denen alle Apps auf diesem Desktop öffnen und in die " +
             "sie speichern, werden aus diesem Browser gelöscht. Dateien, die du stattdessen " +
