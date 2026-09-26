@@ -30,6 +30,10 @@
  *   placeholder — "hh:mm"-style: the part before and after the ":" is shown
  *                 dim in an empty hour / minute segment. Default "--:--".
  *   disabled    — greys the field out and takes it out of the tab order.
+ *   size        — "compact" (default, sac-date-field's compact row) or
+ *                 "regular" (the metrics of a plain kit <input>, the UI font
+ *                 with tabular digits) — set the same size on a date + time
+ *                 pair. Touch sizing is the same for both.
  *
  * Properties:
  *   value — get/set, normalized "HH:MM" or "". Setting is programmatic:
@@ -62,7 +66,7 @@
  * are at least 44px wide, and type is 16px (no iOS focus zoom). Nothing is
  * hover-only.
  *
- * CSS parts: field (the bordered box), segment (each segment), separator.
+ * CSS parts: label, field (the bordered box), segment (each segment), separator.
  */
 (function () {
 
@@ -257,7 +261,7 @@ class SacTimeField extends HTMLElement {
                     display: inline-flex;
                     align-items: center;
                     padding: 0.35rem 0.5rem;
-                    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                    font-family: var(--font-mono);
                     font-size: 0.78rem;
                     line-height: normal;
                     color: var(--text);
@@ -299,14 +303,24 @@ class SacTimeField extends HTMLElement {
                 .seg.period[hidden] { display: none; }
                 .sep { color: var(--text-muted); padding: 0 1px; }
 
+                /* size="regular": the plain kit <input> metrics, as in
+                   sac-date-field's regular size. */
+                :host([size="regular"]) .row { min-height: 0; }
+                :host([size="regular"]) .field {
+                    padding: 0.6rem;
+                    font-family: inherit;
+                    font-size: 13.3333px;
+                }
+                :host([size="regular"]) .seg { width: 2.4ch; }
+
                 @media (pointer: coarse) {
-                    .row { min-height: 44px; }
-                    .field { min-height: 44px; font-size: max(16px, 1rem); padding: 0 0.25rem; }
+                    .row, :host([size="regular"]) .row { min-height: 44px; }
+                    .field, :host([size="regular"]) .field { min-height: 44px; font-size: max(16px, 1rem); padding: 0 0.25rem; }
                     .seg { min-width: 44px; min-height: 40px; }
                 }
                 @media (prefers-reduced-motion: reduce) { .field { transition: none; } }
             </style>
-            <label class="label" hidden></label>
+            <label class="label" part="label" hidden></label>
             <div class="row"><div class="field" part="field" role="group">
                 <input class="seg hour" part="segment" data-seg="h" type="text" inputmode="numeric"
                        autocomplete="off" spellcheck="false" role="spinbutton" maxlength="4">

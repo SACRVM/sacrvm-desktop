@@ -41,6 +41,12 @@
  *                 ("yyyy-mm-dd", "dd.mm.yyyy", …, translated).
  *   disabled    — greys the row out, blocks both the input and the button,
  *                 and closes the popover if it was open.
+ *   size        — "compact" (default: 28px row, small monospace — sidebars,
+ *                 settings panels) or "regular" (the metrics of a plain kit
+ *                 <input>: 0.6rem padding, the UI font with tabular digits,
+ *                 a calendar button as tall as the field) for a normal form.
+ *                 sac-time-field takes the same attribute, so a date + time
+ *                 pair stays one family. Touch sizing is the same for both.
  *
  * Properties:
  *   value — get/set, normalized ISO or "". Setting is programmatic: the input
@@ -60,6 +66,8 @@
  *   in the input  — Enter commits and normalizes, Escape reverts to the last
  *                   valid value. Blurring with invalid text reverts too; while
  *                   invalid the text shows --danger with a 1px underline.
+ *
+ * CSS parts: label, input (the text box), well (the calendar button).
  *
  * CSS custom properties:
  *   --calendar-width — set on this field, forwarded to the popover's
@@ -397,6 +405,26 @@ class SacDateField extends HTMLElement {
                 }
                 .label[hidden] { display: none; }
 
+                /* size="regular": the plain kit <input> metrics (ui.css:
+                   0.6rem padding, the UI font at the input's UA size), the
+                   well one field-height square. 1lh = the field's line box. */
+                :host([size="regular"]) .date {
+                    padding: 0.6rem;
+                    font-family: inherit;
+                    font-size: 13.3333px;
+                    line-height: normal;
+                    font-variant-numeric: tabular-nums;
+                    width: 14ch;
+                }
+                :host([size="regular"]) .well {
+                    font-family: inherit;
+                    font-size: 13.3333px;
+                    line-height: normal;
+                    width: calc(1lh + 1.2rem + 2px);
+                    height: calc(1lh + 1.2rem + 2px);
+                    --icon-size: 17px;
+                }
+
                 .row {
                     display: flex;
                     align-items: center;
@@ -408,7 +436,7 @@ class SacDateField extends HTMLElement {
                     min-width: 0;
                     width: 13ch;
                     padding: 0.35rem 0.5rem;
-                    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                    font-family: var(--font-mono);
                     font-size: 0.78rem;
                     color: var(--text);
                     background: var(--field);
@@ -517,11 +545,11 @@ class SacDateField extends HTMLElement {
                    coarse default mirrored here (see --calendar-width). */
                 @media (pointer: coarse) {
                     :host { --calendar-width: 320px; }
-                    .date {
+                    .date, :host([size="regular"]) .date {
                         min-height: 44px;
                         font-size: max(16px, 1rem);
                     }
-                    .well { width: 44px; height: 44px; }
+                    .well, :host([size="regular"]) .well { width: 44px; height: 44px; }
                 }
 
                 /* The calendar's own :host default would beat a value
@@ -541,12 +569,12 @@ class SacDateField extends HTMLElement {
                     .date, .well { transition: none; }
                 }
             </style>
-            <label class="label" for="date" hidden></label>
+            <label class="label" part="label" for="date" hidden></label>
             <div class="row">
-                <input class="date" id="date" type="text" aria-label="${L.date}"
+                <input class="date" part="input" id="date" type="text" aria-label="${L.date}"
                        placeholder="${L.placeholder}" spellcheck="false"
                        autocomplete="off" autocapitalize="off">
-                <button class="well" id="well" type="button"
+                <button class="well" part="well" id="well" type="button"
                         aria-label="${L.choose}" aria-haspopup="dialog" aria-expanded="false">
                     <sac-icon name="calendar"></sac-icon>
                 </button>
