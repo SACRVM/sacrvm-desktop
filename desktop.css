@@ -129,16 +129,6 @@
     width: 13rem;
 }
 
-/* Tile footprints, Windows-Phone style: the tile decides how much room it
-   takes. Collapsed on narrow screens, where one column is the only sane
-   answer. */
-.grid .tile.size-wide  { grid-column: span 2; }
-.grid .tile.size-large { grid-column: span 2; grid-row: span 2; }
-@media (max-width: 768px) {
-    .grid .tile.size-wide,
-    .grid .tile.size-large { grid-column: auto; grid-row: auto; }
-}
-
 /* The tile that closes the grid — a slot, not an app. */
 .tile-add {
     align-items: center;

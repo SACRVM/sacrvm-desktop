@@ -101,7 +101,7 @@
             body.append(h2, desc, meta);
 
             tile.append(icon, body, tileMenu(m));
-            if (m.tile === "wide" || m.tile === "large") tile.classList.add("size-" + m.tile);
+            if (m.tile === "wide" || m.tile === "large") tile.classList.add(m.tile);   // the kit's .wide (2×1) / .large (2×2)
             // Tile color = app highlight, the sac-launcher move: the seed
             // re-themes icon and hover ring, and opening through the tile
             // hands the same seed to the app. The desktop owner's override
