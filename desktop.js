@@ -1176,15 +1176,19 @@
     }
 
     /* Home's own ribbon eats the SAME toolbar and app list the package
-       injects into every app — no href/name, so no jump-home segment to
-       itself. One source, one renderer (the kit's host path), zero drift. */
+       injects into every app — no href, so no jump-home segment to itself
+       (the ribbon would read SACRVM DESKTOP twice). The name labels the
+       burger's group; its Home entry, which the kit only draws from an
+       href, is listed by hand at the top, as every app's burger has it.
+       One source, one renderer (the kit's host path), zero drift. */
     function paintHomeTools() {
         const nav = document.querySelector("#app-home sac-nav");
         if (!nav) return;
-        const { toolbar, nav: apps } = hostPackage();
+        const { name, icon, href, toolbar, nav: apps } = hostPackage();
         // Home adds its own (i): here it is the only one in the ribbon.
         const about = { icon: "info", title: T("host.about", "About SACRVM DESKTOP"), onClick: openInfo };
-        nav.host = { toolbar: [toolbar[0], about, ...toolbar.slice(1)], nav: apps };
+        const home = { label: sac.t("nav.home", "Home"), icon, href };
+        nav.host = { name, toolbar: [toolbar[0], about, ...toolbar.slice(1)], nav: [home, ...apps] };
     }
 
     /* Every installed app into the Ctrl-K palette, one "Apps" group in tile
