@@ -720,11 +720,11 @@
         } catch (err) { /* a desktop without storage still themes fine */ }
     }
 
-    /* Date format and clock: a page-wide kit setting (sac.regional), apart
+    /* Date, clock and number format: a page-wide kit setting (sac.regional), apart
        from the language — English UI with German dates is normal. The kit
        does not persist it and no browser API exposes the OS choice, so the
        desktop owns it: stored here, applied at boot, and every hosted app's
-       date and time fields follow it live. */
+       date, time and number fields follow it live. */
     const REGIONAL_KEY = "sacrvm.desktop.regional";
     const DATE_FORMATS = [
         { value: "iso",  label: "ISO" },
@@ -732,6 +732,8 @@
         { value: "dmy/", label: "25/09/2026" },
         { value: "mdy/", label: "09/25/2026" },
     ];
+    // The kit's number formats, each named by its own example.
+    const NUMBER_FORMATS = ["1,234.5", "1.234,5", "1 234,5", "1'234.5"];
 
     function storedRegional() {
         try { return JSON.parse(localStorage.getItem(REGIONAL_KEY) || "{}") || {}; }
@@ -788,6 +790,11 @@
                 <button data-value="h12">12h</button>
             </sac-segmented-control>
 
+            <label data-t="settings.number-format">Number format</label>
+            <sac-segmented-control class="number-format">
+                ${NUMBER_FORMATS.map((f) => `<button data-value="${f}">${f}</button>`).join("")}
+            </sac-segmented-control>
+
             <label class="accent-label">Accent</label>
             <sac-swatch-grid columns="8" selectable class="accent-swatches">
                 ${ACCENTS.map((a) => `<sac-swatch value="${a.value}" data-accent="${a.key}" label="${a.label}"></sac-swatch>`).join("")}
@@ -837,14 +844,17 @@
 
         const dateFormat = wrap.querySelector(".date-format");
         const hourCycle  = wrap.querySelector(".hour-cycle");
+        const numberFormat = wrap.querySelector(".number-format");
         const fillRegional = () => {
             if (!sac.regional) return;
             const r = sac.regional.get();
             dateFormat.value = r.date;
             hourCycle.value = r.hourCycle;
+            if (r.number) numberFormat.value = r.number;
         };
         dateFormat.addEventListener("sac:change", (e) => setRegional({ date: e.detail.value }));
         hourCycle.addEventListener("sac:change", (e) => setRegional({ hourCycle: e.detail.value }));
+        numberFormat.addEventListener("sac:change", (e) => setRegional({ number: e.detail.value }));
 
         const grid        = wrap.querySelector(".accent-swatches");
         const custom      = wrap.querySelector(".accent-custom");
