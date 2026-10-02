@@ -11,6 +11,7 @@
         "tile.install": "App installieren",
         "tile.install-first": "Deine erste App installieren",
         "tile.options": "Optionen für {name}",
+        "tile.small": "Kleine Kachel",
         "tile.medium": "Mittlere Kachel",
         "tile.wide": "Breite Kachel",
         "tile.large": "Große Kachel",

@@ -75,7 +75,7 @@
 
     function renderTiles() {
         const grid = el("tiles");
-        grid.replaceChildren(...installed.map((m) => {
+        const tiles = installed.map((m) => {
             // A view app is addressed by hash, so it is a plain link; a window
             // app opens in place, so it is a [data-app] tile. Same as any
             // shell — the desktop adds no mechanism of its own.
@@ -102,6 +102,12 @@
 
             tile.append(icon, body, tileMenu(m));
             if (m.tile === "wide" || m.tile === "large") tile.classList.add(m.tile);   // the kit's .wide (2×1) / .large (2×2)
+            if (m.tile === "small") {
+                // Icon only: the name stays as the h2 for screen readers and
+                // comes back as the tooltip.
+                tile.classList.add("small");
+                tile.title = m.name;
+            }
             // Tile color = app highlight, the sac-launcher move: the seed
             // re-themes icon and hover ring, and opening through the tile
             // hands the same seed to the app. The desktop owner's override
@@ -111,7 +117,22 @@
             const seed = effectiveAccent(m);
             if (seed) tile.style.setProperty("--accent", seed);
             return tile;
-        }));
+        });
+
+        // Consecutive small tiles share one medium cell, up to four to a
+        // .tile-pack; anything else between them starts a new pack.
+        const cells = [];
+        let pack = null;
+        for (const tile of tiles) {
+            if (!tile.classList.contains("small")) { cells.push(tile); pack = null; continue; }
+            if (!pack || pack.childElementCount === 4) {
+                pack = document.createElement("div");
+                pack.className = "tile-pack";
+                cells.push(pack);
+            }
+            pack.appendChild(tile);
+        }
+        grid.replaceChildren(...cells);
 
         // The tile that closes the grid: installing belongs where the apps
         // are, not in the chrome. Dashed, like the kit's own add tile — it
@@ -185,6 +206,7 @@
         tint.addEventListener("sac:change", (e) => setTileAccent(manifest, e.detail.value));
 
         menu.append(
+            item("size:small",  T("tile.small", "Small tile")),
             item("size:medium", T("tile.medium", "Medium tile")),
             item("size:wide",   T("tile.wide", "Wide tile")),
             item("size:large",  T("tile.large", "Large tile")),
