@@ -18,6 +18,10 @@
  *   brand-href — where the brand links to (default "#/", scope-aware).
  *   app-name   — accent-colored text after the brand (spacing separates the
  *                segments; no divider glyph — two icons plus a dot was noise).
+ *   app-icon   — sac.icons name rendered before app-name, in accent: a suite
+ *                whose pages are its apps reads exactly like a host showing a
+ *                hosted app. Unhosted, the phone ribbon shows it instead of
+ *                brand-icon, since the name there is the app's.
  *   compact-title — the app's name as the phone ribbon shows it (see
  *                RESPONSIVE). Absent = brand for a hosted app, else app-name,
  *                else brand. Set it where app-name is no name (a version).
@@ -176,7 +180,7 @@
     const str = (key) => t(key, STRINGS[key]);
 
 class SacNav extends HTMLElement {
-    static get observedAttributes() { return ["host-href", "host-label", "host-icon", "host-nav", "sections-nav", "rail", "compact-title"]; }
+    static get observedAttributes() { return ["brand", "brand-icon", "brand-href", "app-name", "app-icon", "host-href", "host-label", "host-icon", "host-nav", "sections-nav", "rail", "compact-title"]; }
 
     constructor() {
         super();
@@ -323,6 +327,8 @@ class SacNav extends HTMLElement {
         if (this._scopeHandler) window.removeEventListener("sac:scope-changed", this._scopeHandler);
         if (this._hostChangedHandler) document.removeEventListener("sac:host-changed", this._hostChangedHandler);
         this._mq?.removeEventListener("change", this._mqHandler);
+        this._dprMq?.removeEventListener("change", this._dprHandler);
+        this._dprMq = null;
         this._ro?.disconnect();
         this._mo?.disconnect();
         cancelAnimationFrame(this._overflowFrame);
@@ -335,6 +341,7 @@ class SacNav extends HTMLElement {
         const brandIcon = this.getAttribute("brand-icon") || "";
         const brandHref = this.getAttribute("brand-href") || "#/";
         const appName   = this.getAttribute("app-name") || "";
+        const appIcon   = appName ? (this.getAttribute("app-icon") || "") : "";
         // The host's presence in the app's own chrome (see the header).
         // The `host` property is the full injection; the host-* attributes
         // remain as the static-page form of the jump alone.
@@ -363,6 +370,8 @@ class SacNav extends HTMLElement {
         // IS one: the brand of a hosted app, or an app-name.
         const titleAccent = !!hostHref ||
             (!this.getAttribute("compact-title") && !!appName);
+        // Unhosted, the phone's name is the app's, so its icon is too.
+        const cidIcon = (!hostHref && appIcon) || brandIcon;
         const panelHostNav  = hideHost ? [] : hostNav;
         const hasSlotted = !!this.querySelector(':scope > [slot="panel"]');
         this._hasSlotted = hasSlotted;
@@ -461,7 +470,7 @@ class SacNav extends HTMLElement {
                     flex-direction: column;
                     justify-content: center;
                     align-items: center;
-                    gap: 4px;
+                    gap: var(--bar-gap, 4px);
                     padding: 0;
                     flex: none;
                 }
@@ -471,17 +480,23 @@ class SacNav extends HTMLElement {
                     outline: 2px solid var(--accent);
                     outline-offset: 2px;
                 }
+                /* Thickness and gap are whole device pixels (_snapBurger): at
+                   125% / 175% a 2px line is 2.5 device pixels, and the
+                   half-lit row fell above one line and below the next —
+                   three lines, three thicknesses. On the device grid the
+                   three share one offset, so they rasterize alike. */
                 .menu-btn span {
                     display: block;
                     width: 18px;
-                    height: 2px;
+                    height: var(--bar-h, 2px);
                     background: var(--text);
                     border-radius: var(--radius-s);
-                    transition: all 0.3s ease;
+                    /* Not "all": the snapped size and shift must not animate. */
+                    transition: transform 0.3s ease, opacity 0.3s ease;
                 }
-                .menu-btn.active span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+                .menu-btn.active span:nth-child(1) { transform: translateY(var(--bar-pitch, 6px)) rotate(45deg); }
                 .menu-btn.active span:nth-child(2) { opacity: 0; }
-                .menu-btn.active span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+                .menu-btn.active span:nth-child(3) { transform: translateY(calc(-1 * var(--bar-pitch, 6px))) rotate(-45deg); }
                 /* Icon-to-text spacing is the .brand gap alone (0.5rem) — a
                    margin here on top of it doubled the space. */
                 .brand-mark {
@@ -507,6 +522,9 @@ class SacNav extends HTMLElement {
                 .brand-mark { flex: none; }
                 .brand > span:not(.brand-mark) { overflow: hidden; text-overflow: ellipsis; }
                 .brand .app-name { color: var(--accent); }
+                /* An app segment with its own icon sits as far from the brand
+                   as a hosted app from its host (.host-jump: 0.9rem). */
+                .brand .app-mark { margin-left: 0.4rem; }
 
                 /* The host's injected presence renders with the BRAND recipe —
                    one title-bar style everywhere: host, then the app's segment
@@ -858,6 +876,7 @@ class SacNav extends HTMLElement {
                 <a class="brand${brandIcon ? " has-icon" : ""}" href="${hrefFor(brandHref)}">
                     ${brandIcon ? `<span class="brand-mark"><sac-icon name="${brandIcon}"></sac-icon></span>` : ``}
                     ${brand ? `<span class="brand-text${hostHref ? " app-name" : ""}">${brand}</span>` : ``}
+                    ${appIcon ? `<span class="brand-mark app-mark"><sac-icon name="${esc(appIcon)}"></sac-icon></span>` : ``}
                     ${appName ? `<span class="app-name">${appName}</span>` : ``}
                 </a>
                 ${compactTitle ? `
@@ -865,7 +884,7 @@ class SacNav extends HTMLElement {
                     ${hostHref ? `
                     <a class="cid-home" href="${esc(hostHref)}" title="${esc(hostLabel || L.home)}"${keyTitle}><sac-icon name="${esc(hostIcon)}"></sac-icon><span class="cid-home-label"${keyText("nav.home")}>${escText(hostLabel || str("nav.home"))}</span></a>` : ``}
                     <a class="compact-title${titleAccent ? " app-name" : ""}" href="${hrefFor(brandHref)}">
-                        ${brandIcon ? `<span class="cid-icon"><sac-icon name="${esc(brandIcon)}"></sac-icon></span>` : ``}
+                        ${cidIcon ? `<span class="cid-icon"><sac-icon name="${esc(cidIcon)}"></sac-icon></span>` : ``}
                         <span class="cid-text">${compactTitle}</span>
                     </a>
                 </div>` : ``}
@@ -1245,7 +1264,31 @@ class SacNav extends HTMLElement {
 
     _scheduleOverflow() {
         cancelAnimationFrame(this._overflowFrame);
-        this._overflowFrame = requestAnimationFrame(() => this._layoutOverflow());
+        this._overflowFrame = requestAnimationFrame(() => { this._snapBurger(); this._layoutOverflow(); });
+    }
+
+    /** The burger's three lines on the device grid: thickness and gap
+     *  rounded to whole device pixels, so every line sits the same fraction
+     *  off a pixel row and the browser's paint snapping treats all three
+     *  alike. Runs with every layout pass — a render, a resize, a browser
+     *  zoom — and on a resolution change (a window moved to a screen with
+     *  another scale). */
+    _snapBurger() {
+        const btn = this.shadowRoot.querySelector(".menu-btn");
+        const dpr = window.devicePixelRatio || 1;
+        if (this._dprMq?.dpr !== dpr) {
+            this._dprMq?.removeEventListener("change", this._dprHandler);
+            this._dprHandler = this._dprHandler || (() => this._scheduleOverflow());
+            this._dprMq = window.matchMedia(`(resolution: ${dpr}dppx)`);
+            this._dprMq.dpr = dpr;
+            this._dprMq.addEventListener("change", this._dprHandler);
+        }
+        if (!btn) return;
+        const dev = (css) => Math.max(1, Math.round(css * dpr)) / dpr;
+        const h = dev(2), gap = dev(4);
+        btn.style.setProperty("--bar-h", `${h}px`);
+        btn.style.setProperty("--bar-gap", `${gap}px`);
+        btn.style.setProperty("--bar-pitch", `${h + gap}px`);
     }
 
     /** Toolbar controls that may move into the "…" menu, in ribbon order. */
