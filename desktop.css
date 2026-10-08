@@ -86,49 +86,6 @@
     margin-top: 0.35rem;
 }
 
-/* Per-tile menu: size and the way out. Hidden until the tile is hovered or
-   something inside it has focus, so a wall of tiles stays calm — but it is
-   always reachable by keyboard, and it stays open once opened. */
-.tile-menu {
-    position: absolute;
-    top: 8px;
-    right: 10px;
-}
-.tile-menu-btn {
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-    line-height: 1;
-    color: var(--text-dim);
-    background: none;
-    border: none;
-    border-radius: var(--radius-m);
-    opacity: 0;
-    cursor: pointer;
-    transition: opacity 0.15s var(--ease-smooth),
-                color 0.15s var(--ease-smooth),
-                background 0.15s var(--ease-smooth);
-}
-.tile:hover .tile-menu-btn,
-.tile:focus-within .tile-menu-btn,
-.tile-menu[open] .tile-menu-btn { opacity: 1; }
-.tile-menu-btn:hover { color: var(--text); background: var(--hover); }
-.tile-menu-btn:focus-visible {
-    opacity: 1;
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-}
-/* The recolor row inside the tile menu: eight seeds on one line, breathing
-   like the buttons around them. */
-.tile-menu .tile-tint {
-    padding: 0.45rem 0.9rem 0.25rem;
-    width: 13rem;
-}
-
 /* The tile that closes the grid — a slot, not an app. Last even while a
    drag re-forms the packs before it (desktop.js arrangeable). */
 .tile-add {

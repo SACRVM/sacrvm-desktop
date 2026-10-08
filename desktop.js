@@ -100,7 +100,8 @@
             meta.textContent = `${originLabel(m)}${m.version ? " · v" + m.version : ""}`;
             body.append(h2, desc, meta);
 
-            tile.append(icon, body, tileMenu(m));
+            tile.dataset.tile = m.id;      // what the tile's context menu is for
+            tile.append(icon, body);
             if (m.tile === "wide" || m.tile === "large") tile.classList.add(m.tile);   // the kit's .wide (2×1) / .large (2×2)
             if (m.tile === "small") {
                 // Icon only: the name stays as the h2 for screen readers and
@@ -148,8 +149,13 @@
             ? T("tile.install", "Install app")
             : T("tile.install-first", "Install your first app");
         add.append(addIcon, addLabel);
-        add.addEventListener("click", promptInstall);
+        add.addEventListener("click", () => {
+            // The tap that ends arranging is not a request to install.
+            if (pressedArranging) { pressedArranging = false; return; }
+            promptInstall();
+        });
         grid.appendChild(add);
+        if (arranger) arranger.repack();   // new tiles wiggle too while arranging
     }
 
     /* Arranging: drag a tile where you want it. The kit moves the DOM and
@@ -157,11 +163,16 @@
        into the installed list, which is also the burger's and the palette's
        order. No re-render on drop — the kit is still settling the tile.
        The install tile is not an item: it stays last (CSS order keeps it
-       there while packs re-form mid-drag, the append puts the DOM back). */
+       there while packs re-form mid-drag, the append puts the DOM back).
+       A mouse drags any time; a finger in arrange mode — the iPhone's
+       wiggle, started from the tile's menu ("Arrange"). */
+    let arranger = null;
+    let pressedArranging = false;
+
     function arrangeable() {
         if (!sac.tiles || typeof sac.tiles.sortable !== "function") return;
         const grid = el("tiles");
-        sac.tiles.sortable(grid, {
+        arranger = sac.tiles.sortable(grid, {
             items: ".tile:not(.tile-add)",
             onReorder(from, to) {
                 installed.splice(to, 0, ...installed.splice(from, 1));
@@ -171,85 +182,91 @@
                 declareHost();
             },
         });
+        // Read before the kit's own capture listener ends the mode.
+        grid.addEventListener("pointerdown", () => { pressedArranging = arranger.arranging; }, true);
     }
 
-    /**
-     * The tile's own menu: size, and the way out. A menu rather than a bare
-     * × — an × invites a misclick and says nothing about what it removes.
-     */
-    function tileMenu(manifest) {
-        const menu = document.createElement("sac-menu");
-        menu.className = "tile-menu";
+    /* The tile's menu is a context menu — right-click, a long-press, or
+       Shift+F10 / the Menu key on a focused tile: size, color, arranging,
+       and the way out. A menu rather than a bare × — an × invites a misclick
+       and says nothing about what it removes. The browser's own menu is off
+       on the grid only; the rest of the page keeps it. */
+    function tileMenus() {
+        if (typeof sac.contextMenu !== "function") return;
+        sac.contextMenu(el("tiles"), {
+            targets: "[data-tile]",
+            items(tile) {
+                const m = installed.find((x) => x.id === tile.dataset.tile);
+                if (!m) return null;
+                const size = (key, label) => ({
+                    id: "size:" + key,
+                    label: ((m.tile || "medium") === key ? "✓ " : "") + label,   // the current size, marked
+                    onClick: () => setTileSize(m, key),
+                });
+                return [
+                    size("small",  T("tile.small", "Small tile")),
+                    size("medium", T("tile.medium", "Medium tile")),
+                    size("wide",   T("tile.wide", "Wide tile")),
+                    size("large",  T("tile.large", "Large tile")),
+                    "-",
+                    { id: "color", label: T("tile.color", "Color…"), icon: "palette", onClick: () => openTint(m) },
+                    ...(arranger ? [arranger.arrangeItem()] : []),
+                    "-",
+                    { id: "remove", label: T("tile.remove", "Remove from this desktop"), icon: "trash",
+                      danger: true, onClick: () => uninstall(m) },
+                ];
+            },
+        });
+    }
 
-        const trigger = document.createElement("button");
-        trigger.slot = "trigger";
-        trigger.type = "button";
-        trigger.className = "tile-menu-btn";
-        trigger.title = T("tile.options", "{name} options", { name: manifest.name });
-        trigger.setAttribute("aria-label", trigger.title);
-        trigger.textContent = "⋯";          // midline horizontal ellipsis
-        menu.appendChild(trigger);
+    /* A tile's color: the desktop's eight seeds, or back to the color the
+       app ships, or the desktop's own. A pick applies at once — the tile
+       behind the dialog shows it. Swatch colors are data here, not theme:
+       each one is a whole accent seed the owner may pin this app to. */
+    function openTint(manifest) {
+        const dlg = document.createElement("sac-dialog");
+        dlg.setAttribute("title", T("tint.title", "Color — {name}", { name: manifest.name }));
+        // Its own accent scope, like Settings: the dialog wears the color it sets.
+        dlg.classList.add("sac-app");
+        dlg.buttons = [
+            { action: "shipped", label: T("accent.shipped", "App's shipped color"), kind: "default",
+              disabled: !manifest.accentOverride },
+            { action: "desktop", label: T("accent.desktop", "Desktop's color"), kind: "default",
+              disabled: followsDesktop(manifest) },
+            { action: "done", label: "Done", labelKey: "desktop.settings.done", kind: "primary" },
+        ];
 
-        const item = (action, label, danger) => {
-            const b = document.createElement("button");
-            b.dataset.action = action;
-            b.textContent = label;
-            if (danger) b.setAttribute("data-danger", "");
-            if (action.startsWith("size:") &&
-                (manifest.tile || "medium") === action.slice(5)) {
-                b.textContent = "✓ " + label;   // the current size, marked
-            }
-            if (action === "tint:reset" && !manifest.accentOverride) {
-                b.textContent = "✓ " + label;   // no override = as shipped
-            }
-            if (action === "tint:desktop" && followsDesktop(manifest)) {
-                b.textContent = "✓ " + label;
-            }
-            return b;
-        };
-
-        /* The desktop's own eight seeds, as a recolor row. Swatch colors are
-           data here, not theme: each one is a whole accent seed the owner may
-           pin this app's tile (and the app it opens) to. */
-        const tint = document.createElement("sac-swatch-grid");
-        tint.setAttribute("columns", "8");
-        tint.setAttribute("selectable", "");
-        tint.className = "tile-tint";
+        const grid = document.createElement("sac-swatch-grid");
+        grid.setAttribute("columns", "8");
+        grid.setAttribute("selectable", "");
         ACCENTS.forEach((a) => {
             const s = document.createElement("sac-swatch");
             s.setAttribute("value", a.value);
             s.setAttribute("label", accentLabel(a));
-            if ((manifest.accentOverride || "").toLowerCase() === a.value) {
-                s.setAttribute("selected", "");
-            }
-            tint.appendChild(s);
+            if ((manifest.accentOverride || "").toLowerCase() === a.value) s.setAttribute("selected", "");
+            grid.appendChild(s);
         });
-        tint.addEventListener("sac:change", (e) => setTileAccent(manifest, e.detail.value));
-
-        menu.append(
-            item("size:small",  T("tile.small", "Small tile")),
-            item("size:medium", T("tile.medium", "Medium tile")),
-            item("size:wide",   T("tile.wide", "Wide tile")),
-            item("size:large",  T("tile.large", "Large tile")),
-            document.createElement("hr"),
-            tint,
-            item("tint:reset",   T("accent.shipped", "App's shipped color")),
-            item("tint:desktop", T("accent.desktop", "Desktop's color")),
-            document.createElement("hr"),
-            item("remove", T("tile.remove", "Remove from this desktop"), true),
-        );
-
-        menu.addEventListener("sac:select", (e) => {
-            const action = e.detail.action;
-            if (action === "remove") { uninstall(manifest); return; }
-            if (action === "tint:reset")   { setTileAccent(manifest, null); return; }
-            if (action === "tint:desktop") { setTileAccent(manifest, FOLLOW_DESKTOP); return; }
-            if (action.startsWith("size:")) setTileSize(manifest, action.slice(5));
+        const seed = () => {
+            const c = effectiveAccent(manifest);
+            if (c) dlg.style.setProperty("--accent", c);
+            else dlg.style.removeProperty("--accent");
+        };
+        grid.addEventListener("sac:change", (e) => {
+            setTileAccent(manifest, e.detail.value);
+            seed();
+            dlg.setDisabled("shipped", false);
+            dlg.setDisabled("desktop", false);
         });
+        dlg.appendChild(grid);
 
-        // The tile is a link: a click inside its menu must not follow it.
-        menu.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); });
-        return menu;
+        dlg.addEventListener("sac:action", (e) => {
+            if (e.detail.action === "shipped") setTileAccent(manifest, null);
+            if (e.detail.action === "desktop") setTileAccent(manifest, FOLLOW_DESKTOP);
+            setTimeout(() => dlg.remove(), 120);
+        }, { once: true });
+        seed();
+        document.body.appendChild(dlg);
+        dlg.open();
     }
 
     function setTileSize(manifest, size) {
@@ -1309,6 +1326,7 @@
         installed.forEach((m) => sac.apps.register(withAccent(m)));
         renderTiles();
         arrangeable();
+        tileMenus();
 
         applyAccent(storedAccent());
         if (sac.regional) sac.regional.set(storedRegional());
