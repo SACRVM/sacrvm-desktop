@@ -119,13 +119,13 @@
             return tile;
         });
 
-        // Consecutive small tiles share one medium cell, up to four to a
+        // Consecutive small tiles share one medium cell, up to nine to a
         // .tile-pack; anything else between them starts a new pack.
         const cells = [];
         let pack = null;
         for (const tile of tiles) {
             if (!tile.classList.contains("small")) { cells.push(tile); pack = null; continue; }
-            if (!pack || pack.childElementCount === 4) {
+            if (!pack || pack.childElementCount === 9) {
                 pack = document.createElement("div");
                 pack.className = "tile-pack";
                 cells.push(pack);
