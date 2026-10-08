@@ -1133,8 +1133,8 @@
 
     /* The host's About, on the kit's shared About surface — the same
        component every app's About uses, so the two look related by
-       construction. The three notices answer the three questions people
-       actually ask; everything beyond them lives on how.html. */
+       construction. The three explanations answer the three questions
+       people actually ask; everything beyond them lives on how.html. */
 
     function openInfo() {
         const win = sac.about.open({
@@ -1142,41 +1142,56 @@
             icon: "cube",
             description: T("about.description", "A desktop you fill yourself — every app " +
                 "on it comes from somebody else's repository."),
+            license: "MIT",
+            copyright: "SACRVM APPKIT contributors",
+            source: "https://github.com/SACRVM/sacrvm-desktop",
+            // The kit's notices are the Open source tab: only the kit itself.
             notices: [
-                { title: T("about.yours-title", "Yours, in this browser"),
-                  text: T("about.yours", "Apps, settings and the files you save live in " +
-                        "this browser's storage — there is no server and no account. " +
-                        "Another visitor to this address sees an empty desktop.") },
-                { title: T("about.url-title", "Installing is remembering a URL"),
-                  text: T("about.url", "The desktop reads the app's manifest from the " +
-                        "address you paste — a fetch, not an execution — and shows what it " +
-                        "says before you confirm. The app's code loads only when you first " +
-                        "open it, and removing an app forgets the address again.") },
-                { title: T("about.trust-title", "What an app may do"),
-                  text: T("about.trust", "An installed app runs its own code in this page. " +
-                        "Install what you trust, the way you would a browser extension — " +
-                        "the origin is on every tile for exactly that reason.") },
                 { title: T("about.built-title", "Built on"),
                   text: T("about.built", "SACRVM APPKIT, MIT — vendored verbatim in this " +
                         "repository; kit/VERSION names the release. Its own third-party " +
                         "notices live in the appkit repository.") },
             ],
         });
-        // The long version, as a link the surface itself cannot carry
-        // (notice text is third-party in general, so the kit renders it
-        // inert). One append, guarded — reopening resurfaces this window.
+        // The explanations and the long version belong on Info, which the
+        // kit fills with facts only — appended in the kit's notice markup.
+        // Synchronous, so the window still sizes itself to all of it. One
+        // append, guarded — reopening resurfaces this window.
         const body = win.querySelector(".sac-about");
-        if (body && !body.querySelector(".about-more")) {
-            const p = document.createElement("p");
-            p.className = "hint about-more";
-            const a = document.createElement("a");
-            a.href = "how.html";
-            a.target = "_blank";
-            a.rel = "noopener";
-            a.textContent = T("about.more", "The long version — how this works, in full");
-            p.appendChild(a);
-            body.appendChild(p);
-        }
+        if (!body || body.querySelector(".about-more")) return;
+        const info = body.querySelector('sac-tab-panel[name="info"]') || body;
+        const el = (tag, cls, text) => {
+            const n = document.createElement(tag);
+            if (cls) n.className = cls;
+            if (text) n.textContent = text;
+            return n;
+        };
+        [
+            [T("about.yours-title", "Yours, in this browser"),
+             T("about.yours", "Apps, settings and the files you save live in " +
+               "this browser's storage — there is no server and no account. " +
+               "Another visitor to this address sees an empty desktop.")],
+            [T("about.url-title", "Installing is remembering a URL"),
+             T("about.url", "The desktop reads the app's manifest from the " +
+               "address you paste — a fetch, not an execution — and shows what it " +
+               "says before you confirm. The app's code loads only when you first " +
+               "open it, and removing an app forgets the address again.")],
+            [T("about.trust-title", "What an app may do"),
+             T("about.trust", "An installed app runs its own code in this page. " +
+               "Install what you trust, the way you would a browser extension — " +
+               "the origin is on every tile for exactly that reason.")],
+        ].forEach(([title, text]) => {
+            const sec = el("section", "sac-about-notice");
+            sec.append(el("h3", "sac-caption", title), el("p", null, text));
+            info.appendChild(sec);
+        });
+        const p = el("p", "hint about-more");
+        const a = el("a", null, T("about.more", "The long version — how this works, in full"));
+        a.href = "how.html";
+        a.target = "_blank";
+        a.rel = "noopener";
+        p.appendChild(a);
+        info.appendChild(p);
     }
 
     /* --------------------------------------------------------------- host */
