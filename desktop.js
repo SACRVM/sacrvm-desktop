@@ -152,6 +152,27 @@
         grid.appendChild(add);
     }
 
+    /* Arranging: drag a tile where you want it. The kit moves the DOM and
+       re-forms the small-tile packs live; the desktop only mirrors the drop
+       into the installed list, which is also the burger's and the palette's
+       order. No re-render on drop — the kit is still settling the tile.
+       The install tile is not an item: it stays last (CSS order keeps it
+       there while packs re-form mid-drag, the append puts the DOM back). */
+    function arrangeable() {
+        if (!sac.tiles || typeof sac.tiles.sortable !== "function") return;
+        const grid = el("tiles");
+        sac.tiles.sortable(grid, {
+            items: ".tile:not(.tile-add)",
+            onReorder(from, to) {
+                installed.splice(to, 0, ...installed.splice(from, 1));
+                save(installed);
+                const add = el("install-tile");
+                if (add) grid.appendChild(add);
+                declareHost();
+            },
+        });
+    }
+
     /**
      * The tile's own menu: size, and the way out. A menu rather than a bare
      * × — an × invites a misclick and says nothing about what it removes.
@@ -1272,6 +1293,7 @@
         // script is still only fetched when you open it.
         installed.forEach((m) => sac.apps.register(withAccent(m)));
         renderTiles();
+        arrangeable();
 
         applyAccent(storedAccent());
         if (sac.regional) sac.regional.set(storedRegional());

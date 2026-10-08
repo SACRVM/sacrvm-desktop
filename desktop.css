@@ -129,8 +129,10 @@
     width: 13rem;
 }
 
-/* The tile that closes the grid — a slot, not an app. */
+/* The tile that closes the grid — a slot, not an app. Last even while a
+   drag re-forms the packs before it (desktop.js arrangeable). */
 .tile-add {
+    order: 1;
     align-items: center;
     justify-content: center;
     gap: 0.6rem;
