@@ -198,9 +198,14 @@
             items(tile) {
                 const m = installed.find((x) => x.id === tile.dataset.tile);
                 if (!m) return null;
+                // One of four, the current one checked: the kit gives the
+                // check its own column (the labels stay aligned) and tells
+                // a screen reader it is a radio group.
                 const size = (key, label) => ({
                     id: "size:" + key,
-                    label: ((m.tile || "medium") === key ? "✓ " : "") + label,   // the current size, marked
+                    label,
+                    type: "radio",
+                    checked: (m.tile || "medium") === key,
                     onClick: () => setTileSize(m, key),
                 });
                 return [
@@ -228,6 +233,9 @@
         dlg.setAttribute("title", T("tint.title", "Color — {name}", { name: manifest.name }));
         // Its own accent scope, like Settings: the dialog wears the color it sets.
         dlg.classList.add("sac-app");
+        // Every pick applies at once, so a tap outside loses nothing: it
+        // closes, even after a pick (the kit's edit guard would hold it).
+        dlg.setAttribute("light-dismiss", "always");
         dlg.buttons = [
             { action: "shipped", label: T("accent.shipped", "App's shipped color"), kind: "default",
               disabled: !manifest.accentOverride },
@@ -262,8 +270,9 @@
         dlg.addEventListener("sac:action", (e) => {
             if (e.detail.action === "shipped") setTileAccent(manifest, null);
             if (e.detail.action === "desktop") setTileAccent(manifest, FOLLOW_DESKTOP);
-            setTimeout(() => dlg.remove(), 120);
         }, { once: true });
+        // Gone once its exit has played, not on the answer.
+        dlg.addEventListener("sac:closed", () => dlg.remove(), { once: true });
         seed();
         document.body.appendChild(dlg);
         dlg.open();
@@ -697,14 +706,17 @@
                 if (!onStore) input.focus();
             });
 
+            // The answer is read at once; the confirm that follows waits for
+            // this dialog's exit (sac:closed), so the two never overlap.
             dlg.addEventListener("sac:action", (e) => {
                 const value = input.value.trim();
-                setTimeout(() => {
+                const action = e.detail.action;
+                dlg.addEventListener("sac:closed", () => {
                     dlg.remove();
-                    if (e.detail.action === "store" && picked) resolve({ manifest: picked });
-                    else if (e.detail.action === "read" && value) resolve({ input: value });
+                    if (action === "store" && picked) resolve({ manifest: picked });
+                    else if (action === "read" && value) resolve({ input: value });
                     else resolve(null);
-                }, 120);
+                }, { once: true });
             }, { once: true });
 
             document.body.appendChild(dlg);
@@ -781,11 +793,19 @@
     }
 
     /* Date, clock and number format: a page-wide kit setting (sac.regional), apart
-       from the language — English UI with German dates is normal. The kit
-       does not persist it and no browser API exposes the OS choice, so the
-       desktop owns it: stored here, applied at boot, and every hosted app's
-       date, time and number fields follow it live. */
-    const REGIONAL_KEY = "sacrvm.desktop.regional";
+       from the language — English UI with German dates is normal. Until a key
+       is chosen it follows the language (German: 25.09.2026 and 1.234,5);
+       a choice pins that one key. The kit does not persist it and no browser
+       API exposes the OS choice, so the desktop owns it: only what the
+       person actually picked is stored and replayed at boot, and every
+       hosted app's date, time and number fields follow it live. Storing the
+       effective format instead would pin all three keys with one pick, and
+       no app would follow a language switch again. */
+    const REGIONAL_KEY = "sacrvm.desktop.regional.v2";
+    // Before kit 2.36 the whole effective format was stored, under this key.
+    const REGIONAL_KEY_V1 = "sacrvm.desktop.regional";
+    // …and that format was everybody's default, whatever the language.
+    const REGIONAL_DEFAULT_V1 = { date: "iso", hourCycle: "h23", number: "1,234.5" };
     const DATE_FORMATS = [
         { value: "iso",  label: "ISO" },
         { value: "dmy.", label: "25.09.2026" },
@@ -794,16 +814,47 @@
     ];
     // The kit's number formats, each named by its own example.
     const NUMBER_FORMATS = ["1,234.5", "1.234,5", "1 234,5", "1'234.5"];
+    const REGIONAL_VALUES = {
+        date: DATE_FORMATS.map((f) => f.value),
+        hourCycle: ["h23", "h12"],
+        number: NUMBER_FORMATS,
+    };
+
+    /** The keys the person pinned, nothing else. Filled at boot. */
+    let regionalPicks = {};
 
     function storedRegional() {
-        try { return JSON.parse(localStorage.getItem(REGIONAL_KEY) || "{}") || {}; }
-        catch (err) { return {}; }
+        const valid = (record) => {
+            const out = {};
+            for (const k of Object.keys(REGIONAL_VALUES)) {
+                if (record && REGIONAL_VALUES[k].includes(record[k])) out[k] = record[k];
+            }
+            return out;
+        };
+        try {
+            const raw = localStorage.getItem(REGIONAL_KEY);
+            if (raw !== null) return valid(JSON.parse(raw));
+            // A v1 record holds all three keys, chosen or not. A value off
+            // the old default was a pick; one equal to it cannot be told
+            // from untouched, so it follows the language from now on.
+            // Read only: the v2 record is written on the next pick.
+            const old = valid(JSON.parse(localStorage.getItem(REGIONAL_KEY_V1) || "null"));
+            for (const k of Object.keys(old)) if (old[k] === REGIONAL_DEFAULT_V1[k]) delete old[k];
+            return old;
+        } catch (err) {
+            return {};
+        }
     }
 
+    /** partial: a key's new pick, or "auto" to let it follow the language. */
     function setRegional(partial) {
         if (!sac.regional) return;
         sac.regional.set(partial);
-        try { localStorage.setItem(REGIONAL_KEY, JSON.stringify(sac.regional.get())); }
+        for (const [k, v] of Object.entries(partial)) {
+            if (v === "auto") delete regionalPicks[k];
+            else if (REGIONAL_VALUES[k] && REGIONAL_VALUES[k].includes(v)) regionalPicks[k] = v;
+        }
+        try { localStorage.setItem(REGIONAL_KEY, JSON.stringify(regionalPicks)); }
         catch (err) { /* the choice still holds for this visit */ }
     }
 
@@ -823,6 +874,10 @@
         // family on .sac-app elements): opened from an app it wears THAT
         // surface's color, at home it inherits the desktop's.
         dlg.classList.add("sac-app");
+        // Everything in here applies as it is changed, and the name is
+        // committed on any close: a tap outside loses nothing, so it closes
+        // even after a change (the kit's edit guard would hold it).
+        dlg.setAttribute("light-dismiss", "always");
 
         const wrap = document.createElement("div");
         wrap.className = "settings";
@@ -854,6 +909,10 @@
             <sac-segmented-control class="number-format">
                 ${NUMBER_FORMATS.map((f) => `<button data-value="${f}">${f}</button>`).join("")}
             </sac-segmented-control>
+            <!-- The way back once a format was picked: shown only then. -->
+            <div class="settings-actions regional-actions" hidden>
+                <button type="button" class="btn regional-auto" data-t="settings.regional-auto">Follow the language</button>
+            </div>
 
             <label class="accent-label">Accent</label>
             <sac-swatch-grid columns="8" selectable class="accent-swatches">
@@ -905,16 +964,28 @@
         const dateFormat = wrap.querySelector(".date-format");
         const hourCycle  = wrap.querySelector(".hour-cycle");
         const numberFormat = wrap.querySelector(".number-format");
+        const regionalRow = wrap.querySelector(".regional-actions");
+        // The controls show the EFFECTIVE format, so a key that follows the
+        // language moves with it — a switch made in this very dialog included.
         const fillRegional = () => {
             if (!sac.regional) return;
             const r = sac.regional.get();
             dateFormat.value = r.date;
             hourCycle.value = r.hourCycle;
             if (r.number) numberFormat.value = r.number;
+            regionalRow.hidden = Object.keys(regionalPicks).length === 0;
         };
         dateFormat.addEventListener("sac:change", (e) => setRegional({ date: e.detail.value }));
         hourCycle.addEventListener("sac:change", (e) => setRegional({ hourCycle: e.detail.value }));
         numberFormat.addEventListener("sac:change", (e) => setRegional({ number: e.detail.value }));
+        wrap.querySelector(".regional-auto").addEventListener("click", () => {
+            setRegional({ date: "auto", hourCycle: "auto", number: "auto" });
+            fillRegional();
+            // The button just hid itself: focus lands on what it changed.
+            const active = dateFormat.querySelector(`button[data-value="${CSS.escape(dateFormat.value)}"]`);
+            if (active) active.focus();
+        });
+        if (sac.regional) sac.regional.onChange(fillRegional);
 
         const grid        = wrap.querySelector(".accent-swatches");
         const custom      = wrap.querySelector(".accent-custom");
@@ -1299,7 +1370,15 @@
             label: T("palette.open", "Open {name}", { name: m.name }),
             icon: m.icon || "cube",
             group,
-            run: () => { refreshManifest(m.id); sac.apps.open(m.id); },
+            run: () => {
+                // Ctrl-K works over an open burger panel, which is modal
+                // (kit 2.36): everything behind it is inert, and a window
+                // opened now would sit dimmed under the scrim. Close it
+                // first, as the panel's own entries do.
+                document.querySelectorAll("sac-nav").forEach((nav) => { if (nav.isOpen) nav.close(); });
+                refreshManifest(m.id);
+                sac.apps.open(m.id);
+            },
         }));
     }
 
@@ -1329,7 +1408,10 @@
         tileMenus();
 
         applyAccent(storedAccent());
-        if (sac.regional) sac.regional.set(storedRegional());
+        // Only the person's picks: every other key keeps following the
+        // language, in the desktop and in every app it hosts.
+        regionalPicks = storedRegional();
+        if (sac.regional) sac.regional.set(regionalPicks);
 
         // A desktop is a place with its own files: every app's Open… /
         // Save as… (context.files) goes to one shared space in this browser,

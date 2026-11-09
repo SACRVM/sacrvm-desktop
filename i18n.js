@@ -123,6 +123,7 @@
         "settings.date-format": "Datumsformat",
         "settings.clock": "Uhr",
         "settings.number-format": "Zahlenformat",
+        "settings.regional-auto": "Der Sprache folgen",
         "settings.this-desktop": "Dieser Desktop",
         "settings.remove-all": "Alle Apps entfernen",
         "settings.clear-files": "Deine Dateien löschen ({size})",
