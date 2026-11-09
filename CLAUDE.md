@@ -19,8 +19,9 @@ belongs on screen, not in a table nobody reads.
 **Reading and running stay separate**: `sac.apps.inspect(url)` returns data;
 `sac.apps.add(manifest)` is the step that can run code. Never collapse the two.
 
-**No build step, ever.** Vanilla custom elements, plain CSS, `npx serve .` and
-F5 — no node_modules, no bundler, no TypeScript.
+**No build step, ever.** Vanilla custom elements, plain CSS, a static server
+(`python3 -m http.server 3300`, Firepit's *Run site*) and F5 — no node_modules,
+no bundler, no TypeScript.
 
 **The kit IS vendored here** (`kit/`), because a desktop hosts apps it does not
 know in advance and must load the whole kit. Upgrading is a deliberate copy from

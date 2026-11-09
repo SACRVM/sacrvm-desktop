@@ -8,7 +8,8 @@ of it.
 
 Built with [SACRVM APPKIT](https://github.com/SACRVM/sacrvm-appkit), which is
 **vendored** here: `kit/` is a copy this repo owns and upgrades when it
-chooses. Zero dependencies, zero build — `npx serve .` and reload.
+chooses. Zero dependencies, zero build — any static server
+(`python3 -m http.server 3300`) and reload.
 
 ## Installing an app
 
