@@ -133,6 +133,12 @@
        properties cross shadow roots; a class does not. 14/26 ≈ the kit's
        ~56% icon-to-box ratio. */
     --icon-btn-size: 26px;
+
+    /* Scrollbar measure — the kit bar's track and the air on each side of
+       its thumb (thumb = size − 2 × gap = 6px). Custom properties cross
+       shadow roots, so every shadow copy of the §5 recipe reads this pair. */
+    --scrollbar-size: 12px;
+    --scrollbar-gap:  3px;
     --icon-btn-icon: 14px;
 
     /* Tool button — ONE measure for <sac-toolbox>'s tools and the light-DOM
@@ -206,8 +212,17 @@ sac-window,
     /* Surfaces — accent-independent but direction-INdependent (the flipped
        seed already produces the right value), so these may live on the scopes. */
     --glass-hue:   color-mix(in srgb, var(--surface) 45%, var(--bg));   /* internal carrier  */
+    /* The glass, solid: what a blurred surface (--glass, --glass-strong, a
+       menu, a toast) shows instead under prefers-reduced-transparency or
+       prefers-contrast: more — same hue, nothing of the page shining through. */
+    --glass-solid: var(--glass-hue);
     --tile:        color-mix(in srgb, var(--surface) 70%, transparent);     /* launcher tiles    */
     --tile-hover:  color-mix(in srgb, var(--surface) 90%, transparent);
+    /* The ground under a window's content: glass is for the chrome (title
+       bar, toolbar, frame); text, chips and row actions sit on a near-opaque
+       ground, so a bright desktop tile behind the window cannot wash out
+       their contrast. 6% of the blurred backdrop still shows through. */
+    --window-ground: color-mix(in srgb, var(--surface) 94%, transparent);
 
     /* Text — two-step secondary: --text-muted carries real secondary
        information (AA on every plane); --text-dim is strictly tertiary,
@@ -220,6 +235,7 @@ sac-window,
     /* Lines + washes */
     --border:        color-mix(in srgb, var(--fg) 8%, transparent);
     --border-strong: color-mix(in srgb, var(--fg) 16%, transparent);
+    --border-contrast: color-mix(in srgb, var(--fg) 45%, transparent); /* edges under prefers-contrast: more */
     --hover:         color-mix(in srgb, var(--fg) 8%, transparent);   /* hover wash        */
     --hover-strong:  color-mix(in srgb, var(--fg) 14%, transparent);  /* active/press wash */
 
@@ -383,8 +399,8 @@ sac-window,
    with scrollable shadow content must duplicate these rules inside.
 
    Chromium and Safari draw the KIT's bar (::-webkit-scrollbar below): a
-   6px thumb with 2px of air on both sides, no arrow buttons, the same on
-   every OS. The standard pair (scrollbar-width/-color) is for Firefox ONLY:
+   6px thumb with 3px of air on every side (--scrollbar-size / -gap), no
+   arrow buttons, the same on every OS. The standard pair (scrollbar-width/-color) is for Firefox ONLY:
    since Chrome 121 a set scrollbar-color — which is INHERITED, even into
    shadow roots — makes Chrome ignore every ::-webkit-scrollbar rule and
    paint its native bar (on Windows: arrow buttons, the thumb off-centre in
@@ -396,12 +412,12 @@ sac-window,
         scrollbar-color: var(--scrollbar-thumb) transparent;
     }
 }
-*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar { width: var(--scrollbar-size); height: var(--scrollbar-size); }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
     background: var(--scrollbar-thumb);
     background-clip: content-box;
-    border: 2px solid transparent;
+    border: var(--scrollbar-gap) solid transparent;
     border-radius: 999px;   /* a pill — the one rounded exception to the shape scale */
 }
 *::-webkit-scrollbar-thumb:hover {
@@ -439,9 +455,12 @@ html, body {
 h1, h2, h3, h4, h5, h6 {
     font-family: 'Outfit', sans-serif;
     font-weight: 700;
-    letter-spacing: -0.02em;
     margin: 0;
 }
+/* Tracking follows size: display sizes tighten, small headings (h4–h6 sit
+   at body size) keep the face's own spacing. */
+h1, h2, h3 { letter-spacing: -0.02em; }
+h4, h5, h6 { letter-spacing: 0; }
 
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -544,6 +563,39 @@ input[type="checkbox"], input[type="radio"] {
     accent-color: var(--accent);
 }
 
+/* Field errors — the look of an invalid kit field, for plain fields too:
+   red text and a 1px --danger hairline under the field (never a thick
+   coloured border), and a line under it that says what IS expected
+   ("At most 100", "Not a valid date – e.g. 25.09.2026"). Wire it:
+     <input aria-invalid="true" aria-describedby="qty-error">
+     <div class="field-error" id="qty-error" aria-live="polite">At most 100</div>
+   Keep the .field-error element in the page and empty while the field is
+   valid (it collapses to nothing): a live region that is already there
+   announces new text reliably, one that appears with its text does not.
+   The kit fields (<sac-number-field>, <sac-date-field>, <sac-time-field>,
+   <sac-color-field>) do all of this themselves. Style guide → CSS Patterns
+   → Field errors. */
+input[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+    color: var(--danger-text);
+    border-bottom-color: var(--danger);
+}
+input[aria-invalid="true"]:focus,
+textarea[aria-invalid="true"]:focus {
+    border-color: var(--accent);
+    border-bottom-color: var(--danger);
+}
+select[aria-invalid="true"] { border-bottom-color: var(--danger); }
+.field-error {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: var(--danger-text);
+    text-transform: none;
+    letter-spacing: 0;
+}
+.field-error:empty { margin: 0; }
+
 /* .cell-input — a plain <input> / <textarea> as a cell editor (the
    size="cell" look of the kit fields): borderless, fills its cell, the
    cell's font, no own focus ring — the grid draws the cell's. A plain input
@@ -578,7 +630,9 @@ th {
     font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--text-dim);
+    /* --text-muted: a column heading names what the column holds — real
+       information, so not the tertiary --text-dim. */
+    color: var(--text-muted);
     font-weight: 700;
     padding: 0.45rem 0.9rem 0.45rem 0;
     border-bottom: 1px solid var(--border-strong);
@@ -626,7 +680,9 @@ kbd {
     font-family: inherit;
     text-transform: uppercase;
     letter-spacing: 0.02em;
-    transition: all 0.2s ease;
+    /* Named, never `all`: a theme switch or a layout change must not animate. */
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease,
+                box-shadow 0.2s ease, transform 0.2s var(--ease-smooth), opacity 0.2s ease;
     font-size: 0.7rem;
     display: flex;
     align-items: center;
@@ -641,12 +697,18 @@ kbd {
     background: var(--accent-fill);
     color: var(--on-accent);
     border-color: transparent;
-    transition: all 0.2s var(--ease-bounce);
 }
 .btn.primary:hover:not(:disabled) {
     background: var(--accent-strong);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px var(--accent-glow);
+}
+/* Press: the button gives under the pointer the moment it goes down, not on
+   release — fast in (100ms), back at the normal pace. */
+.btn:active:not(:disabled),
+.btn.primary:active:not(:disabled) {
+    transform: scale(0.97);
+    transition-duration: 0.1s;
 }
 .btn.danger {
     background: var(--danger-fill);
@@ -689,7 +751,8 @@ kbd {
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    transition: all 0.2s var(--ease-smooth);
+    transition: background-color 0.2s var(--ease-smooth), color 0.2s var(--ease-smooth),
+                transform 0.2s var(--ease-smooth);
     padding: 0;
     /* 20/36 = the same ~56% ratio. A custom property crosses into
        <sac-icon>'s shadow root, which the `.nav-icon-btn svg` rule below
@@ -704,6 +767,7 @@ kbd {
 .nav-icon-btn:active {
     transform: translateY(0);
     background: var(--hover-strong);
+    transition-duration: 0.1s;
 }
 /* A light-DOM inline <svg> (rare now — host tools use <sac-icon>) follows the
    same --icon-size, so both icon forms come out the same size. */
@@ -747,7 +811,10 @@ a.nav-icon-btn { text-decoration: none; }
     border: none;
     border-radius: var(--radius-m);
     background: transparent;
-    color: var(--text-dim);
+    /* --text-muted, not --text-dim: a thin 14px glyph at rest must clear 3 : 1
+       against a window's glass in both themes (it is 5.1 : 1 in light, 6.7 : 1
+       in dark; --text-dim was 2.9 : 1 in light). */
+    color: var(--text-muted);
     font-family: inherit;
     cursor: pointer;
     transition: color 120ms var(--ease-smooth), background 120ms var(--ease-smooth);
@@ -801,13 +868,29 @@ a.nav-icon-btn { text-decoration: none; }
     color: var(--text-muted);
 }
 
+/* sac.contextMenu's reserved columns: a checkmark (a state) and an icon,
+   each as wide as the menu's 16px glyph, so every label starts in one
+   column — a checked entry, an icon entry and a plain one alike. */
+.sac-menu-check,
+.sac-menu-icon {
+    flex: none;
+    width: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    --icon-size: 16px;
+}
+
 /* sac.selection — rows of a list that marks several (kit/js/lib/selection.js).
    No text selection or touch callout (Shift+click and a long-press would
    start one); a marked row is the --accent-tint ground, its swapped icon
-   the accent. */
+   the accent. The keyboard cursor, where the open row doesn't show it (the
+   moving end of a Shift range), is a quiet --accent ring while the list
+   has focus. */
 [data-sac-row] { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 [data-sac-row].marked { background: var(--accent-tint); }
 [data-sac-row].marked [data-sac-mark-icon] { color: var(--accent); }
+[data-sac-selection]:focus-within [data-sac-row][data-sac-cursor] { box-shadow: inset 0 0 0 1px var(--accent); }
 
 /* About window content — rendered by sac.about.open() into a <sac-window>.
    The one shared credits/licence surface: a host and an app both use it, so
@@ -1007,6 +1090,11 @@ a.nav-icon-btn { text-decoration: none; }
     background: var(--hover);
     color: var(--text);
 }
+.pagination button:active:not(:disabled),
+.pagination a:active:not(.disabled) {
+    background: var(--hover-strong);
+    transition-duration: 0s;
+}
 .pagination button.active,
 .pagination a.active,
 .pagination button[aria-current="page"],
@@ -1056,7 +1144,9 @@ a.nav-icon-btn { text-decoration: none; }
     font-weight: 600;
 }
 .empty-state p {
-    color: var(--text-dim);
+    /* --text-muted: the line that explains the empty panel (and usually how
+       to fill it) carries information — not the tertiary --text-dim. */
+    color: var(--text-muted);
     font-size: 0.85rem;
     margin: 0;
     max-width: 32ch;
@@ -1218,8 +1308,8 @@ a.nav-icon-btn { text-decoration: none; }
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    transition: transform 0.4s var(--ease-bounce), border-color 0.4s var(--ease-bounce),
-                box-shadow 0.4s var(--ease-bounce), background 0.4s var(--ease-bounce);
+    transition: transform 0.4s var(--ease-smooth), border-color 0.4s var(--ease-smooth),
+                box-shadow 0.4s var(--ease-smooth), background 0.4s var(--ease-smooth);
     overflow: hidden;
     cursor: pointer;
     /* Persistent compositor layer: without it the browser promotes the tile
@@ -1236,7 +1326,7 @@ a.nav-icon-btn { text-decoration: none; }
     --icon-size: 48px;
     margin-bottom: auto;
     color: var(--accent);
-    transition: transform 0.4s var(--ease-bounce);
+    transition: transform 0.4s var(--ease-smooth);
 }
 .tile h2 {
     font-size: 1.5rem;
@@ -1261,6 +1351,12 @@ a.nav-icon-btn { text-decoration: none; }
 .tile:hover > sac-icon {
     transform: scale(1.1) rotate(5deg);
 }
+/* Press: the lifted tile gives back half its lift at once — a push, not a
+   scale (see the text-jitter note above). */
+.tile:active {
+    transform: translateY(-4px) translateZ(0);
+    transition-duration: 0.1s;
+}
 /* Arranging tiles (sac.tiles.sortable). The grid carries
    data-sortable-active for the length of a drag: the cursor is a grabbing
    hand everywhere in it, and the tiles the lifted one passes over stay
@@ -1270,7 +1366,9 @@ a.nav-icon-btn { text-decoration: none; }
 [data-sortable-active],
 [data-sortable-active] * { cursor: grabbing !important; }
 [data-sortable-active] .tile:not([data-sortable-dragging]):hover,
-[data-arranging] .tile:not([data-sortable-dragging]):hover {
+[data-arranging] .tile:not([data-sortable-dragging]):hover,
+[data-sortable-active] .tile:not([data-sortable-dragging]):active,
+[data-arranging] .tile:not([data-sortable-dragging]):active {
     transform: translateZ(0);
     border-color: var(--border-strong);
     box-shadow: none;
@@ -1393,7 +1491,8 @@ a.nav-icon-btn { text-decoration: none; }
     cursor: not-allowed;
     filter: grayscale(1);
 }
-.tile.disabled:hover {
+.tile.disabled:hover,
+.tile.disabled:active {
     transform: none;
     border-color: var(--border-strong);
     box-shadow: none;
@@ -1648,6 +1747,9 @@ canvas.natural {
     .tile:hover > sac-icon { transform: none; }
     .btn.primary:hover:not(:disabled) { transform: none; box-shadow: none; }
     .nav-icon-btn:hover { transform: none; }
+    /* …but the press itself still shows (a touch is a hover too). */
+    .btn.primary:active:not(:disabled) { transform: scale(0.97); }
+    .tile:active { transform: translateY(2px) translateZ(0); }
 }
 
 @media (pointer: coarse) {
@@ -1736,6 +1838,7 @@ canvas.natural {
         translate: -105% 0;
         visibility: hidden;
         transition: translate 0.5s var(--ease-swift), visibility 0.5s;
+        touch-action: pan-y pinch-zoom;   /* sideways = sac-nav's swipe-to-close */
     }
     /* translate: none while open, not 0 — any transform makes the drawer the
        containing block of its position:fixed descendants (popovers). */
@@ -1767,4 +1870,43 @@ canvas.natural {
     .tile.small { flex-direction: column; align-items: center; justify-content: center; padding: 0; }
     .tile.small > sac-icon { --icon-size: 32px; }
     .hub-container .intro-text { font-size: 1rem; }
+}
+
+/* --------------------------------------------------------------------------
+   16. Reduced transparency, more contrast — global user preferences.
+   A blurred surface lets the page shine through; under either setting it
+   turns solid (--glass-solid: the same hue, opaque) and drops the blur, and
+   under prefers-contrast: more its edge becomes a clearly visible line
+   (--border-contrast). Last in the file, so it wins over the hover resets
+   above. NOTE: like section 14, this reaches the light DOM only — every
+   component carries the same two queries inside its shadow root.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-transparency: reduce) {
+    .glass,
+    .floating-menu,
+    .sac-arrange-pill,
+    .center-card,
+    .tile,
+    .tile:hover {
+        background: var(--glass-solid);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+}
+@media (prefers-contrast: more) {
+    .glass,
+    .floating-menu,
+    .sac-arrange-pill,
+    .center-card,
+    .tile,
+    .tile:hover {
+        background: var(--glass-solid);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+    .glass,
+    .floating-menu,
+    .sac-arrange-pill,
+    .center-card,
+    .tile { border-color: var(--border-contrast); }
 }

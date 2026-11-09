@@ -14,10 +14,22 @@
  *   - Tab / Enter / ,    commit highlighted/top
  *   - Esc                close dropdown (no commit)
  *   - ArrowDown / Up     move highlight
- *   - Backspace on empty input removes the last chip
+ *   - Backspace on an empty entry marks the last chip (outlined, and
+ *     announced "Press Backspace again to remove {label}"); a second
+ *     Backspace removes it (announced "{label} removed"). Any other key, a
+ *     click or leaving the field clears the mark. A held Backspace (key
+ *     repeat) never removes chips.
+ *
+ * ARIA: the entry is role="combobox" (aria-expanded, aria-controls,
+ * aria-activedescendant, aria-autocomplete="list") named by `add-label`; the
+ * dropdown is a listbox of role="option" rows, the highlighted one
+ * aria-selected. The colour step after "Create" is a named group of swatch
+ * buttons. Announcements go through a polite live region in the shadow root.
  *
  * Attributes:
- *   add-label    — ghost-button text when empty (default "Add")
+ *   add-label    — ghost-button text when empty (default "Add"); also the
+ *                  entry's accessible name and, outside size="cell", its
+ *                  placeholder while it holds no text
  *   allow-create — presence enables creating unknown entries
  *   size         — absent = the inline row above; "cell" = the cell-editor
  *                  contract (style guide → Cell editors): one line that fills
@@ -72,14 +84,15 @@
 
 class SacChipInput extends HTMLElement {
     static PALETTE_SLOTS = ["blue", "orange", "red", "green", "purple", "pink", "yellow", "teal", "gray", "indigo"];
-    static get observedAttributes() { return ["disabled", "size"]; }
+    static get observedAttributes() { return ["disabled", "size", "add-label"]; }
 
     get disabled() { return this.hasAttribute("disabled"); }
     set disabled(v) { if (v) this.setAttribute("disabled", ""); else this.removeAttribute("disabled"); }
 
     attributeChangedCallback(name) {
         if (name === "disabled" && this._entry) this._entry.disabled = this.disabled;
-        if (name === "size") this._refreshAddButton();
+        if (name === "size") { this._refreshAddButton(); this._nameEntry(); }
+        if (name === "add-label") this._relabel();
     }
 
     focus(opts) {
@@ -181,12 +194,51 @@ class SacChipInput extends HTMLElement {
     _relabel() {
         if (!this._addText) return;
         this._addText.textContent = this._addLabel();
+        this._nameEntry();
         if (this._labels.size) this._renderChips();          // labelKey'd names
         if (this._open) {
             const top = this._dropdown.scrollTop;
             this._renderDropdown();
             this._dropdown.scrollTop = top;
         }
+    }
+
+    /** The entry's name is the add label; outside a cell it is also the
+     *  placeholder (shown only while the entry holds no text). The listbox
+     *  carries the same name. */
+    _nameEntry() {
+        if (!this._entry) return;
+        const name = this._addLabel();
+        this._entry.setAttribute("aria-label", name);
+        if (this._cell()) this._entry.removeAttribute("placeholder");
+        else this._entry.placeholder = name;
+        if (!this._creating) this._dropdown.setAttribute("aria-label", name);
+    }
+
+    /** Polite announcement through the shadow root's live region. Cleared
+     *  first and set a frame later, so the same words twice are read twice. */
+    _say(text) {
+        const live = this._live;
+        if (!live) return;
+        cancelAnimationFrame(this._sayRaf);
+        live.textContent = "";
+        if (!text) return;
+        this._sayRaf = requestAnimationFrame(() => { live.textContent = text; });
+    }
+
+    /** Backspace mark: the chip a second Backspace removes (null = none). */
+    _markChip(name) {
+        this._marked = name || null;
+        if (!this._chipsRoot) return;
+        for (const chip of this._chipsRoot.querySelectorAll("sac-chip")) {
+            chip.classList.toggle("marked", chip.dataset.name === this._marked);
+        }
+    }
+
+    _clearMark() {
+        if (!this._marked) return;
+        this._markChip(null);
+        this._say("");
     }
 
     _render() {
@@ -201,24 +253,58 @@ class SacChipInput extends HTMLElement {
                     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
                     font-size: 12px;
                     color: var(--text);
+                    /* The chips, the ghost button and the text entry take
+                       turns in one row, so they share its height: swapping
+                       the ghost for the entry never moves what is below.
+                       22px is a removable sac-chip (its 14px × + 3px
+                       padding + 1px border, twice) — keep in step with it.
+                       middle, not baseline: the baseline would come from
+                       whichever of them is first (11px ghost text, 12px
+                       entry text) and nudge the line by a pixel on the swap. */
+                    --_chip-h: 22px;
+                    --_row-h: 22px;
+                    vertical-align: middle;
                 }
                 .row {
                     display: inline-flex;
                     flex-wrap: wrap;
                     align-items: center;
                     gap: 4px;
+                    min-height: var(--_row-h);
                 }
                 input.entry {
                     flex: 1 1 80px;
                     min-width: 80px;
+                    box-sizing: border-box;
+                    height: var(--_row-h);
                     background: transparent;
                     color: inherit;
                     border: none;
                     outline: none;
                     font: inherit;
-                    padding: 3px 4px;
+                    padding: 0 4px;
                 }
                 input.entry[hidden] { display: none !important; }
+                input.entry::placeholder { color: var(--text-dim); opacity: 1; }
+                /* Backspace mark: the chip the next Backspace removes —
+                   the kit's focus ring, since it has the keyboard's aim. */
+                sac-chip.marked {
+                    outline: 2px solid var(--accent);
+                    outline-offset: 1px;
+                    border-radius: 999px;
+                }
+                /* Screen-reader-only live text. */
+                .sr {
+                    position: absolute;
+                    width: 1px;
+                    height: 1px;
+                    margin: -1px;
+                    padding: 0;
+                    overflow: hidden;
+                    clip: rect(0 0 0 0);
+                    white-space: nowrap;
+                    border: 0;
+                }
 
                 /* Empty-state affordance: a chip-shaped dashed ghost button so
                    it's obvious you can add entries. */
@@ -226,7 +312,9 @@ class SacChipInput extends HTMLElement {
                     display: inline-flex;
                     align-items: center;
                     gap: 4px;
-                    padding: 3px 9px;
+                    box-sizing: border-box;
+                    height: var(--_chip-h);
+                    padding: 0 9px;
                     border-radius: 999px;
                     border: 1px dashed var(--text-muted);
                     background: transparent;
@@ -234,19 +322,25 @@ class SacChipInput extends HTMLElement {
                     font: inherit;
                     /* sac-chip's type, line by line — after the font reset
                        (which brought back a normal line-height), so the
-                       ghost and the chips beside it share one height. */
+                       ghost reads like the chips that replace it. */
                     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
                     font-size: 11px;
                     font-weight: 600;
                     letter-spacing: 0.01em;
                     line-height: 1;
                     cursor: pointer;
-                    transition: color 100ms, border-color 100ms, background 100ms;
+                    transition: color 100ms, border-color 100ms, background 100ms,
+                                transform 0.2s var(--ease-smooth);
                 }
                 button.add-btn:hover {
                     color: var(--text);
                     border-color: var(--text);
                     background: color-mix(in srgb, var(--fg) 4%, transparent);
+                }
+                /* Press: answers the moment it goes down. */
+                button.add-btn:active:not(:disabled) {
+                    transform: scale(0.97);
+                    transition-duration: 0.1s;
                 }
                 button.add-btn[hidden] { display: none !important; }
                 button.add-btn .plus { font-weight: 700; }
@@ -288,6 +382,11 @@ class SacChipInput extends HTMLElement {
                 .opt:hover, .opt.hl {
                     background: var(--hover);
                 }
+                /* Press: a pickable row steps to the strong wash at once. */
+                .opt[data-idx]:active {
+                    background: var(--hover-strong);
+                    transition-duration: 0s;
+                }
                 .opt .swatch {
                     width: 10px;
                     height: 10px;
@@ -326,6 +425,12 @@ class SacChipInput extends HTMLElement {
                     transform: scale(1.1);
                     border-color: color-mix(in srgb, var(--fg) 50%, transparent);
                 }
+                /* Press replaces the lift. Outranks the (hover: none) reset
+                   below, so a tap still shows it. */
+                .swatch-btn:active:not(:disabled) {
+                    transform: scale(0.95);
+                    transition-duration: 0.1s;
+                }
                 .picker-header {
                     padding: 8px 10px 4px;
                     font-size: 11px;
@@ -336,14 +441,13 @@ class SacChipInput extends HTMLElement {
 
                 /* Touch: 44px rows and targets, 16px type in the field (below
                    16px iOS zooms the page on focus), a wider gap so the chips'
-                   × halos do not overlap their neighbours. */
+                   × halos do not overlap their neighbours. The row is the
+                   entry's 44px; the ghost keeps the chips' 32px (sac-chip's
+                   24px touch ×) and a 44px halo, centred in that row. */
                 @media (pointer: coarse) {
+                    :host { --_chip-h: 32px; --_row-h: 44px; }
                     .row { gap: 12px 10px; }
-                    input.entry {
-                        font-size: max(16px, 1rem);
-                        min-height: 44px;
-                        box-sizing: border-box;
-                    }
+                    input.entry { font-size: max(16px, 1rem); }
                     button.add-btn { position: relative; }
                     button.add-btn::after,
                     .swatch-btn::after {
@@ -385,6 +489,7 @@ class SacChipInput extends HTMLElement {
                     width: 100%;
                     height: 100%;
                     padding: 0 var(--cell-padding-inline, 8px);
+                    min-height: 0;
                     box-sizing: border-box;
                     overflow-x: auto;
                     scrollbar-width: none;
@@ -405,20 +510,34 @@ class SacChipInput extends HTMLElement {
 
                 /* Scrollbar theme — duplicated because the global rule in
                    ui.css doesn't pierce Shadow DOM. */
-                .dropdown::-webkit-scrollbar { width: 6px; }
+                .dropdown::-webkit-scrollbar { width: var(--scrollbar-size); }
                 .dropdown::-webkit-scrollbar-track { background: transparent; }
                 .dropdown::-webkit-scrollbar-thumb {
                     background: var(--scrollbar-thumb);
+                    background-clip: content-box;
+                    border: var(--scrollbar-gap) solid transparent;
                     border-radius: 999px;
+                }
+
+                /* Reduced transparency / more contrast: the blurred dropdown
+                   turns solid; under more contrast its edge shows clearly. */
+                @media (prefers-reduced-transparency: reduce) {
+                    .dropdown { background: var(--glass-solid); backdrop-filter: none; -webkit-backdrop-filter: none; }
+                }
+                @media (prefers-contrast: more) {
+                    .dropdown { background: var(--glass-solid); backdrop-filter: none; -webkit-backdrop-filter: none; border-color: var(--border-contrast); }
                 }
             </style>
             <div class="row" id="row">
                 <button type="button" class="add-btn" id="add-btn">
                     <span class="plus">+</span><span class="add-text">${addLabel}</span>
                 </button>
-                <input class="entry" id="entry" autocomplete="off" hidden/>
+                <input class="entry" id="entry" autocomplete="off" hidden
+                       role="combobox" aria-autocomplete="list" aria-haspopup="listbox"
+                       aria-expanded="false" aria-controls="dropdown"/>
             </div>
             <div class="dropdown" id="dropdown" role="listbox" popover="manual"></div>
+            <div class="sr" id="live" role="status"></div>
         `;
         this._chipsRoot = this.shadowRoot.getElementById("row");
         this._entry = this.shadowRoot.getElementById("entry");
@@ -426,6 +545,8 @@ class SacChipInput extends HTMLElement {
         this._addBtn = this.shadowRoot.getElementById("add-btn");
         this._addText = this._addBtn.querySelector(".add-text");
         this._dropdown = this.shadowRoot.getElementById("dropdown");
+        this._live = this.shadowRoot.getElementById("live");
+        this._nameEntry();
 
         this._addBtn.addEventListener("click", () => {
             // Reveal the input first so focus() lands on a non-hidden element.
@@ -438,6 +559,7 @@ class SacChipInput extends HTMLElement {
         // straight after focus then belongs to the grid, not to a list.
         this._entry.addEventListener("focus", () => { if (!this._cell()) this._openDropdown(); });
         this._entry.addEventListener("input", () => {
+            this._clearMark();
             this._highlight = 0;
             if (this._cell() && !this._open) this._openDropdown();
             else this._renderDropdown();
@@ -452,10 +574,13 @@ class SacChipInput extends HTMLElement {
         });
         this._entry.addEventListener("keydown", (e) => this._onKey(e));
         this._entry.addEventListener("blur", () => {
+            this._clearMark();
             // After the dropdown closes via outside-click, snap back to the
             // ghost button when the input ends up empty + unfocused.
             queueMicrotask(() => this._refreshAddButton());
         });
+        // A click anywhere in the field (a chip, its ×) ends a Backspace mark.
+        this._chipsRoot.addEventListener("pointerdown", () => this._clearMark());
 
         this._renderChips();
         this._refreshAddButton();
@@ -479,11 +604,14 @@ class SacChipInput extends HTMLElement {
             if (node === this._entry || node === this._addBtn) continue;
             node.remove();
         }
+        if (this._marked && !this._value.includes(this._marked)) this._marked = null;
         for (const name of this._value) {
             const chip = document.createElement("sac-chip");
+            chip.dataset.name = name;
             chip.setAttribute("label", this._labelFor(name));
             chip.setAttribute("color", this._colorFor(name));
             chip.setAttribute("removable", "");
+            if (name === this._marked) chip.classList.add("marked");
             chip.addEventListener("sac:remove", () => this._removeChip(name));
             this._chipsRoot.insertBefore(chip, this._addBtn);
         }
@@ -492,6 +620,7 @@ class SacChipInput extends HTMLElement {
     _openDropdown() {
         this._open = true;
         this.setAttribute("open", "");
+        this._entry.setAttribute("aria-expanded", "true");
         this._refreshAddButton();
         this._renderDropdown();
         this._raise();                   // top layer before measuring
@@ -501,6 +630,8 @@ class SacChipInput extends HTMLElement {
     _closeDropdown() {
         this._open = false;
         this.removeAttribute("open");
+        this._entry.setAttribute("aria-expanded", "false");
+        this._entry.removeAttribute("aria-activedescendant");
         this._lower();
         this._creating = null;
         this._entry.value = "";
@@ -563,6 +694,9 @@ class SacChipInput extends HTMLElement {
             this._renderColorPicker();
             return;
         }
+        this._dropdown.setAttribute("role", "listbox");
+        this._dropdown.removeAttribute("aria-labelledby");
+        this._dropdown.setAttribute("aria-label", this._addLabel());
 
         // Match the name and the shown label alike ("zer" finds a "fragile"
         // labelled "Zerbrechlich").
@@ -592,10 +726,15 @@ class SacChipInput extends HTMLElement {
         if (opts.length === 0) {
             this._highlight = 0;
             this._dropdown.innerHTML = `<div class="opt" style="color:var(--text-muted);cursor:default;">${esc(t("chip-input.no-matches", "no matches"))}</div>`;
+            this._entry.removeAttribute("aria-activedescendant");
             return;
         }
 
         if (this._highlight >= opts.length) this._highlight = 0;
+        // Rows are options; the highlighted one is aria-selected and the
+        // entry's active descendant (focus never leaves the entry).
+        const optAttrs = (i) =>
+            `id="opt-${i}" role="option" aria-selected="${i === this._highlight ? "true" : "false"}" data-idx="${i}"`;
 
         // Suggestion names + colors are host-supplied and (unlike committed
         // chips) NOT normalised, so both are untrusted in this innerHTML sink.
@@ -604,22 +743,30 @@ class SacChipInput extends HTMLElement {
         const safeSlot = (c) => (/^[a-z0-9_-]+$/i.test(c || "") ? c : "gray");
         const html = opts.map((o, i) => {
             if (o.kind === "create") {
-                return `<div class="opt create ${i === this._highlight ? "hl" : ""}" data-idx="${i}">${esc(t("chip-input.create", 'Create "{name}"')).replace("{name}", esc(o.name))}</div>`;
+                return `<div class="opt create ${i === this._highlight ? "hl" : ""}" ${optAttrs(i)}>${esc(t("chip-input.create", 'Create "{name}"')).replace("{name}", esc(o.name))}</div>`;
             }
             const color = `var(--palette-${safeSlot(o.entry.color)}, var(--palette-gray))`;
             const count = o.entry.count > 0 ? `<span class="count">${esc(String(o.entry.count))}</span>` : "";
-            return `<div class="opt ${i === this._highlight ? "hl" : ""}" data-idx="${i}">
-                        <span class="swatch" style="background:${color}"></span>
+            return `<div class="opt ${i === this._highlight ? "hl" : ""}" ${optAttrs(i)}>
+                        <span class="swatch" style="background:${color}" aria-hidden="true"></span>
                         <span>${esc(this._labelFor(o.entry.name))}</span>${count}
                     </div>`;
         }).join("");
 
         this._dropdown.innerHTML = html;
+        this._entry.setAttribute("aria-activedescendant", `opt-${this._highlight}`);
+        const hlRow = this._dropdown.querySelector(`#opt-${this._highlight}`);
+        if (hlRow && hlRow.scrollIntoView) hlRow.scrollIntoView({ block: "nearest" });
         this._dropdown.querySelectorAll(".opt[data-idx]").forEach(el => {
             el.addEventListener("mouseenter", () => {
                 this._highlight = Number(el.dataset.idx);
-                this._dropdown.querySelectorAll(".opt").forEach(o => o.classList.remove("hl"));
+                this._dropdown.querySelectorAll(".opt").forEach(o => {
+                    o.classList.remove("hl");
+                    o.setAttribute("aria-selected", "false");
+                });
                 el.classList.add("hl");
+                el.setAttribute("aria-selected", "true");
+                this._entry.setAttribute("aria-activedescendant", el.id);
             });
             // mousedown only keeps focus in the entry (so its blur doesn't
             // close us first); the commit waits for the click, which a finger
@@ -643,8 +790,13 @@ class SacChipInput extends HTMLElement {
         const swatches = slots.map(c =>
             `<button type="button" class="swatch-btn" data-color="${c}" style="background:var(--palette-${c})" title="${esc(t(`chip-input.color-${c}`, SLOT_NAMES[c] || c)).replace(/"/g, "&quot;")}"></button>`
         ).join("");
+        // Not a list of options now: a named group of swatch buttons.
+        this._dropdown.setAttribute("role", "group");
+        this._dropdown.setAttribute("aria-labelledby", "picker-header");
+        this._dropdown.removeAttribute("aria-label");
+        this._entry.removeAttribute("aria-activedescendant");
         this._dropdown.innerHTML = `
-            <div class="picker-header">${hint}</div>
+            <div class="picker-header" id="picker-header">${hint}</div>
             <div class="picker">${swatches}</div>
         `;
         this._dropdown.querySelectorAll(".swatch-btn").forEach(btn => {
@@ -668,15 +820,29 @@ class SacChipInput extends HTMLElement {
     }
 
     _onKey(e) {
+        // Backspace on an empty entry: the first press marks the last chip,
+        // the second removes it. A held key (repeat) never removes; any other
+        // key (modifiers aside) drops the mark.
+        if (e.key === "Backspace" && this._entry.value === "" && this._value.length > 0 && !this._creating) {
+            e.preventDefault();
+            if (e.repeat) return;
+            const last = this._value[this._value.length - 1];
+            const label = this._labelFor(last);
+            if (this._marked === last) {
+                this._markChip(null);
+                this._removeChip(last);
+                this._say(t("chip-input.removed", "{name} removed").replace("{name}", () => label));
+            } else {
+                this._markChip(last);
+                this._say(t("chip-input.backspace-again", "Press Backspace again to remove {name}").replace("{name}", () => label));
+            }
+            return;
+        }
+        if (!["Shift", "Control", "Alt", "Meta", "AltGraph", "CapsLock"].includes(e.key)) this._clearMark();
+
         if (this._cell() && this._onCellKey(e)) return;
         if (this._creating) {
             if (e.key === "Escape") { this._creating = null; this._renderDropdown(); e.preventDefault(); }
-            return;
-        }
-
-        if (e.key === "Backspace" && this._entry.value === "" && this._value.length > 0) {
-            this._removeChip(this._value[this._value.length - 1]);
-            e.preventDefault();
             return;
         }
 

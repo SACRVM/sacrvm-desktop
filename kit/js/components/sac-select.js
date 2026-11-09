@@ -51,6 +51,11 @@
  *   Escape        close the list; closed: revert typed text
  *   Tab           closes the list — picking the highlighted option when you
  *                 typed or arrowed — and moves on (never swallowed)
+ *   Delete / Backspace   with [clearable], a chosen value and the text empty
+ *                 or wholly selected: clears the choice — the × button's
+ *                 path (list closes, value "", sac:change). The × itself
+ *                 stays out of the tab order; these keys are its keyboard
+ *                 twin. Otherwise they edit the text as usual.
  *
  * ARIA: the input is role="combobox" (aria-expanded, aria-controls,
  * aria-activedescendant); the list is role="listbox" of role="option" rows
@@ -61,6 +66,11 @@
  * the viewport, flips above when there is more room there, and its height is
  * capped by the room it has — measured against the visual viewport, so an
  * on-screen keyboard shrinks it rather than covering it.
+ * A pick is not typing: under (pointer: coarse) a tap opens the list
+ * WITHOUT the on-screen keyboard (the input carries inputmode="none" while
+ * it is not being typed in). Tapping the text again — or typing on a
+ * hardware keyboard — brings typing back: the keyboard rises and the list
+ * filters as usual. Leaving the field restores the keyboard-free state.
  *
  * CSS parts: label, field, input, clear, list, option.
  */
@@ -70,6 +80,9 @@
         (window.sac && window.sac.t) ? window.sac.t(key, fallback) : fallback;
 
     let uid = 0;
+
+    /** A finger: a tap picks, it does not type — see _restInputmode(). */
+    const COARSE = matchMedia("(pointer: coarse)");
 
 class SacSelect extends HTMLElement {
     static get observedAttributes() {
@@ -94,6 +107,10 @@ class SacSelect extends HTMLElement {
 
         this._onDocPointer = this._onDocPointer.bind(this);
         this._onReposition = this._onReposition.bind(this);
+        // A convertible switching between touch and mouse: re-rest the input.
+        this._onPointerKind = () => {
+            if (this._input && this.shadowRoot.activeElement !== this._input) this._restInputmode();
+        };
     }
 
     connectedCallback() {
@@ -114,6 +131,7 @@ class SacSelect extends HTMLElement {
         window.addEventListener("scroll", this._onReposition, true);
         window.addEventListener("resize", this._onReposition);
         window.visualViewport?.addEventListener("resize", this._onReposition);
+        COARSE.addEventListener("change", this._onPointerKind);
         if (window.sac && sac.lang && !this._offLang) this._offLang = sac.lang.onChange(() => this._relabel());
     }
 
@@ -125,6 +143,7 @@ class SacSelect extends HTMLElement {
         window.removeEventListener("scroll", this._onReposition, true);
         window.removeEventListener("resize", this._onReposition);
         window.visualViewport?.removeEventListener("resize", this._onReposition);
+        COARSE.removeEventListener("change", this._onPointerKind);
     }
 
     attributeChangedCallback(name) {
@@ -315,6 +334,9 @@ class SacSelect extends HTMLElement {
                 }
                 .clear { cursor: pointer; }
                 .clear:hover { color: var(--text); background: var(--hover); }
+                /* Press: answers the moment it goes down (outranks the
+                   (hover: none) reset below, so a tap shows it too). */
+                .clear:active:not(:disabled) { color: var(--text); background: var(--hover-strong); transition-duration: 0s; }
                 .clear[hidden] { display: none; }
                 .chev { transition: transform 150ms var(--ease-smooth); }
                 :host([open]) .chev { transform: rotate(180deg); }
@@ -362,12 +384,19 @@ class SacSelect extends HTMLElement {
                 .opt[aria-selected="true"] { color: var(--accent-text); font-weight: 600; }
                 .opt[aria-selected="true"] .tick { visibility: visible; }
                 .opt.hl { background: var(--hover); }
+                /* Press: the row steps to the strong wash at once. */
+                .opt:not([aria-disabled="true"]):active { background: var(--hover-strong); transition-duration: 0s; }
                 .opt[aria-disabled="true"] { color: var(--text-dim); cursor: not-allowed; }
                 .opt[aria-disabled="true"].hl { background: transparent; }
                 .empty { padding: 8px; color: var(--text-muted); cursor: default; }
-                .list::-webkit-scrollbar { width: 6px; }
+                .list::-webkit-scrollbar { width: var(--scrollbar-size); }
                 .list::-webkit-scrollbar-track { background: transparent; }
-                .list::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 999px; }
+                .list::-webkit-scrollbar-thumb {
+                    background: var(--scrollbar-thumb);
+                    background-clip: content-box;
+                    border: var(--scrollbar-gap) solid transparent;
+                    border-radius: 999px;
+                }
 
                 @media (pointer: coarse) {
                     .field, :host([size="regular"]) .field { min-height: 44px; font-size: max(16px, 1rem); }
@@ -404,6 +433,15 @@ class SacSelect extends HTMLElement {
                     :host([size="cell"]) .field { font-size: max(16px, 1em); }
                 }
                 @media (prefers-reduced-motion: reduce) { .field, .chev { transition: none; } }
+
+                /* Reduced transparency / more contrast: the blurred list turns
+                   solid; under more contrast its edge shows clearly. */
+                @media (prefers-reduced-transparency: reduce) {
+                    .list { background: var(--glass-solid); backdrop-filter: none; -webkit-backdrop-filter: none; }
+                }
+                @media (prefers-contrast: more) {
+                    .list { background: var(--glass-solid); backdrop-filter: none; -webkit-backdrop-filter: none; border-color: var(--border-contrast); }
+                }
             </style>
             <label class="label" part="label" for="text" hidden></label>
             <div class="field" part="field">
@@ -429,9 +467,21 @@ class SacSelect extends HTMLElement {
             if (this.disabled) return;
             if (e.target !== this._input) e.preventDefault();     // keep focus in the input
         });
+        // Was the text already focused when this tap began? (A second tap on
+        // the text of a keyboard-free field asks for typing.)
+        this._field.addEventListener("pointerdown", () => {
+            this._focusedAtDown = this.shadowRoot.activeElement === this._input;
+        });
         this._field.addEventListener("click", (e) => {
+            const again = this._focusedAtDown;
+            this._focusedAtDown = false;          // a label's forwarded click has no pointerdown here
             if (this.disabled) return;
             if (e.composedPath().includes(this._clearBtn)) return;
+            if (this._input.hasAttribute("inputmode") && again && e.composedPath()[0] === this._input) {
+                this._enableTyping();
+                if (!this._open) this._openList();
+                return;
+            }
             this._input.focus();
             if (this._open) this._close(false);
             else this._openList();
@@ -439,9 +489,7 @@ class SacSelect extends HTMLElement {
         this._clearBtn.addEventListener("click", (e) => {
             e.stopPropagation();
             if (this.disabled) return;
-            this._close(false);
-            this._setValue("", true);
-            this._input.focus();
+            this._clear();
         });
 
         this._input.addEventListener("input", (e) => {
@@ -454,8 +502,10 @@ class SacSelect extends HTMLElement {
         this._input.addEventListener("change", (e) => e.stopPropagation());
         this._input.addEventListener("keydown", (e) => this._onKeydown(e));
         this._input.addEventListener("blur", () => {
+            if (this._refocusing) return;
             this._close(false);
             this._restoreText();
+            this._restInputmode();
         });
 
         this._list.addEventListener("mousedown", (e) => e.preventDefault());   // focus stays in the input
@@ -470,13 +520,52 @@ class SacSelect extends HTMLElement {
         });
 
         this.addEventListener("focusin", () => {
-            if (this._inside) return;
+            if (this._inside || this._refocusing) return;
             this._inside = true;
             this._snapshot = this._value;
         });
         this.addEventListener("focusout", (e) => {
+            if (this._refocusing) return;
             if (e.relatedTarget !== this) this._inside = false;
         });
+        this._restInputmode();
+    }
+
+    /* ------------------------------------------------------- touch typing */
+
+    /** At rest under (pointer: coarse) the input is keyboard-free
+     *  (inputmode="none"): a tap opens the list, not the on-screen keyboard.
+     *  A fine pointer never carries it. */
+    _restInputmode() {
+        if (!this._input) return;
+        if (COARSE.matches) this._input.setAttribute("inputmode", "none");
+        else this._input.removeAttribute("inputmode");
+    }
+
+    /** Typing asked for: drop inputmode and refocus within this tap — iOS
+     *  raises its keyboard only on a focus. The blur in between is not a
+     *  leave (the list stays, nothing reverts). */
+    _enableTyping() {
+        const input = this._input;
+        if (!input.hasAttribute("inputmode")) return;
+        input.removeAttribute("inputmode");
+        this._refocusing = true;
+        try {
+            input.blur();
+            input.focus();
+        } finally {
+            this._refocusing = false;
+        }
+        if (this._query == null) input.select();          // typing replaces the label
+    }
+
+    /** The × button's path, shared with Delete / Backspace: close the list,
+     *  clear the value (sac:change), show the empty field, keep focus. */
+    _clear() {
+        this._close(false);
+        this._query = null;
+        this._setValue("", true);
+        this._input.focus();
     }
 
     /* ------------------------------------------------------------ in place */
@@ -609,7 +698,9 @@ class SacSelect extends HTMLElement {
         try { this._list.showPopover(); } catch (err) { /* already shown */ }
         this._syncField();
         this._filter(false);
-        if (!typed) this._input.select();                // typing replaces the shown label
+        // Typing replaces the shown label. Keyboard-free (a tap on a phone),
+        // there is nothing to type yet — _enableTyping() selects then.
+        if (!typed && !this._input.hasAttribute("inputmode")) this._input.select();
     }
 
     _close(restoreText) {
@@ -638,7 +729,26 @@ class SacSelect extends HTMLElement {
         const cell = this._cell();
         const open = this._open;
         const move = (i) => { if (i >= 0) { this._engaged = true; this._highlight(i); } };
+        // Typing on a hardware keyboard while keyboard-free: typing is back,
+        // and the first character replaces the shown label.
+        if (this._input.hasAttribute("inputmode") && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            this._input.removeAttribute("inputmode");
+            if (this._query == null) this._input.select();
+        }
         switch (e.key) {
+            case "Delete":
+            case "Backspace": {
+                // [clearable]: with the text empty or wholly selected, these
+                // keys are the × button's keyboard twin.
+                if (!this.hasAttribute("clearable") || this._value === "" || e.repeat) break;
+                const input = this._input;
+                const len = input.value.length;
+                const all = len > 0 && input.selectionStart === 0 && input.selectionEnd === len;
+                if (len > 0 && !all) break;
+                e.preventDefault();
+                this._clear();
+                break;
+            }
             case "ArrowDown":
             case "ArrowUp":
                 e.preventDefault();
